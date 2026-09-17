@@ -1858,7 +1858,13 @@ async function streamTab() {
 
 /* ---- youtube -------------------------------------------------------- */
 
+/* Loading by URL needs a server; a browser cannot fetch youtube audio
+ * itself. On a static host (github pages and friends) there is nothing
+ * behind this path, so say that plainly rather than showing a raw 404. */
+const YT_CONFIGURED = !!window.SRVB_YT_ENDPOINT;
 const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || '/api/youtube';
+const NO_BACKEND_MSG =
+  'no download backend on this host — use "choose file" or drop a track on the record.';
 
 async function readWithProgress(res, onProgress) {
   const total = parseInt(res.headers.get('content-length') || '0', 10);
@@ -1892,7 +1898,20 @@ async function downloadYoutube() {
   };
 
   try {
-    let res = await fetch(YT_ENDPOINT + '?url=' + encodeURIComponent(url), { signal: ytAbort.signal });
+    let res;
+    try {
+      res = await fetch(YT_ENDPOINT + '?url=' + encodeURIComponent(url), { signal: ytAbort.signal });
+    } catch (netErr) {
+      if (netErr.name === 'AbortError') throw netErr;
+      const e = new Error('could not reach ' + YT_ENDPOINT);
+      e.noBackend = true;
+      throw e;
+    }
+    if (res.status === 404 || res.status === 405) {
+      const e = new Error('no downloader at ' + YT_ENDPOINT);
+      e.noBackend = true;
+      throw e;
+    }
     if (!res.ok) throw new Error('server returned ' + res.status);
 
     let blob;
@@ -1915,7 +1934,8 @@ async function downloadYoutube() {
     await handleFile(new File([blob], name, { type: blob.type || 'audio/mpeg' }), false);
   } catch (err) {
     if (err.name === 'AbortError') setStatus('download cancelled.');
-    else setStatus('download failed: ' + err.message + ' (check your /api/youtube backend)', 'error');
+    else if (err.noBackend && !YT_CONFIGURED) setStatus(NO_BACKEND_MSG, 'error');
+    else setStatus('download failed: ' + err.message, 'error');
   } finally {
     ytAbort = null;
     $('#btn-youtube-cancel').hidden = true;
