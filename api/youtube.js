@@ -59,7 +59,9 @@ export default async function handler(req, res) {
     // youtube blocks datacenter ips in waves, and that is not a bug in the
     // request — say which it is rather than returning a bare 500
     const detail = String((err && err.message) || err);
-    const blocked = /sign in|bot|429|consent/i.test(detail);
+    // 403 is what the ip block usually looks like from here; the wordier
+    // variants show up when youtube would rather ask for a login
+    const blocked = /sign in|bot|403|429|consent|captcha/i.test(detail);
     return res.status(502).json({
       error: blocked
         ? 'youtube refused this server — it blocks datacenter addresses in waves'
