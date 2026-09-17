@@ -171,6 +171,23 @@
     #btn-clear-songs { background: var(--sub-alt); color: var(--sub); margin-top: 8px; }
     #btn-clear-songs:hover { background: var(--sub-alt); color: var(--error); filter: none; }
 
+    .yt-fallback {
+      margin-top: 10px; padding: 12px 14px; border-radius: 8px;
+      border-left: 3px solid var(--pink); background: var(--sub-alt);
+      font-size: 0.75rem; line-height: 1.55; color: var(--sub);
+    }
+    .yt-fallback-row { display: flex; gap: 8px; margin: 10px 0 8px; }
+    .yt-fallback-row button {
+      flex: 1; padding: 9px 10px; border-radius: 6px;
+      background: var(--pink); color: var(--text); font-size: 0.75rem;
+    }
+    .yt-fallback-row button:hover {
+      background: var(--pink); color: var(--text); filter: brightness(1.12);
+    }
+    .yt-fallback-row button:disabled { filter: none; }
+    .yt-fallback small { display: block; font-size: 0.6875rem; color: var(--sub); }
+    .yt-fallback strong { color: var(--text); font-weight: 500; }
+
     .progress-track {
       height: 4px; margin-top: 10px; border-radius: 999px;
       background: var(--sub-alt); overflow: hidden;
@@ -495,6 +512,18 @@
           </div>
           <div class="progress-track" id="download-progress" hidden><i></i></div>
           <button class="panel-btn" id="btn-youtube-download">load track</button>
+
+          <div class="yt-fallback" id="yt-fallback" hidden>
+            <p>a browser can't pull audio off youtube on its own, and this host
+            has no downloader. play the video and capture its tab instead —
+            same result, and it works here:</p>
+            <div class="yt-fallback-row">
+              <button id="btn-yt-open">1 · open video</button>
+              <button id="btn-yt-capture">2 · capture tab</button>
+            </div>
+            <small>in the share dialog pick the youtube tab and tick
+            <strong>share tab audio</strong>.</small>
+          </div>
           <button class="panel-btn" id="btn-saved-songs" aria-expanded="false" aria-controls="saved-songs-list">saved songs</button>
           <ul class="saved-songs-list" id="saved-songs-list" aria-label="saved songs" hidden></ul>
           <button class="panel-btn" id="btn-clear-songs" hidden>clear saved songs</button>

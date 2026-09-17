@@ -21,9 +21,8 @@ AudioWorklet and tab capture both need a secure context.
 
 Worth knowing:
 
-- **Pages is static, so there is no YouTube downloader.** See below — file
-  loading, drag and drop, tab capture, every effect and both export formats
-  work with no backend at all.
+- **Pages is static, so there is no YouTube downloader.** Pasting a youtube
+  link offers tab capture instead, which needs no server. See below.
 - `<link rel="canonical">`, the Open Graph tags and the JSON-LD block in
   `index.html` point at `https://dec3ptor.github.io/Test111/`. Update all four
   if you move to a custom domain (and add a `CNAME` file for it).
@@ -76,14 +75,32 @@ comb never sits still. Renders are now bit-identical run to run.
 - Library moved from `localStorage` to IndexedDB, so real audio files fit.
 - Waveform scrubbing, drag-to-set loop regions, and keyboard transport.
 
-## Configuration: the YouTube endpoint
+## YouTube links
 
-Loading by URL needs a server-side downloader — a browser cannot fetch YouTube
-audio directly, and a static host has nothing to run one on. Without an
-endpoint the app says so and points you at "choose file" instead.
+A page cannot fetch YouTube audio by itself. Two things stop it, and neither
+is fixable in the client:
 
-To enable it, host the downloader anywhere (a small serverless function is
-enough, with CORS allowing your Pages origin). The client calls:
+- `googlevideo.com` serves no `Access-Control-Allow-Origin` header, so the
+  browser blocks the request whatever URL you hand it;
+- getting that URL at all means running YouTube's player code to solve the
+  signature cipher.
+
+So it needs a server, and a static host has nowhere to run one.
+
+### What works with no backend: tab capture
+
+Paste a link and the app offers this instead. Open the video in a tab, come
+back, hit **capture tab**, and pick that tab with **share tab audio** ticked.
+The audio is then buffered and goes through the same engine — slow it down,
+drown it in reverb, and jump back to live whenever you want. The only thing
+you lose against a file is export, since there is no fixed-length source to
+render offline.
+
+### Wiring up a downloader anyway
+
+Host one somewhere that can run code (a small serverless function is plenty,
+with CORS allowing your Pages origin). Note that downloading YouTube audio is
+against YouTube's Terms of Service; tab capture is not. The client calls:
 
 ```
 GET <endpoint>?url=<encoded youtube url>

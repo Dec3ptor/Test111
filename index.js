@@ -1782,6 +1782,7 @@ async function loadFromBlob(blob, name, autoplay) {
     await engine.loadBuffer(buffer);
 
     trackName = name;
+    hideYtFallback();
     $('#track-name').textContent = baseName(name);
     document.title = baseName(name) + ' — slow playback audio';
     wave.setBuffer(buffer);
@@ -1835,6 +1836,7 @@ async function streamTab() {
     }
     stream.getVideoTracks().forEach(t => t.stop());
     await engine.loadStream(stream);
+    hideYtFallback();
     trackName = 'live tab';
     $('#track-name').textContent = 'live tab';
     wave.setLive();
@@ -1863,8 +1865,25 @@ async function streamTab() {
  * behind this path, so say that plainly rather than showing a raw 404. */
 const YT_CONFIGURED = !!window.SRVB_YT_ENDPOINT;
 const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || '/api/youtube';
-const NO_BACKEND_MSG =
-  'no download backend on this host — use "choose file" or drop a track on the record.';
+const NO_BACKEND_MSG = 'no downloader on this host — capture the tab instead:';
+
+const YT_RE = /^(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch|shorts|live|embed)|youtu\.be\/)/i;
+const isYoutubeUrl = u => YT_RE.test((u || '').trim());
+
+/* Offer the tab-capture route. A page cannot fetch youtube audio itself
+ * (googlevideo.com sends no CORS headers) and a static host has nothing
+ * to run a downloader on, so capturing the tab while it plays is the
+ * only thing that actually works here. */
+function showYtFallback(url) {
+  const box = document.getElementById('yt-fallback');
+  box.hidden = false;
+  box.dataset.url = url || '';
+  document.getElementById('btn-yt-open').disabled = !url;
+}
+
+function hideYtFallback() {
+  document.getElementById('yt-fallback').hidden = true;
+}
 
 async function readWithProgress(res, onProgress) {
   const total = parseInt(res.headers.get('content-length') || '0', 10);
@@ -1885,6 +1904,13 @@ async function readWithProgress(res, onProgress) {
 async function downloadYoutube() {
   const url = $('#youtube-url-input').value.trim();
   if (!url) { setStatus('paste a youtube link first.'); return; }
+
+  // no endpoint configured: do not fire a request that can only 404
+  if (!YT_CONFIGURED) {
+    setStatus(NO_BACKEND_MSG, 'error');
+    showYtFallback(url);
+    return;
+  }
 
   ytAbort = new AbortController();
   $('#btn-youtube-cancel').hidden = false;
@@ -1934,7 +1960,7 @@ async function downloadYoutube() {
     await handleFile(new File([blob], name, { type: blob.type || 'audio/mpeg' }), false);
   } catch (err) {
     if (err.name === 'AbortError') setStatus('download cancelled.');
-    else if (err.noBackend && !YT_CONFIGURED) setStatus(NO_BACKEND_MSG, 'error');
+    else if (err.noBackend) { setStatus(NO_BACKEND_MSG, 'error'); showYtFallback(url); }
     else setStatus('download failed: ' + err.message, 'error');
   } finally {
     ytAbort = null;
@@ -2099,6 +2125,20 @@ function init() {
 
   $('#btn-youtube-download').addEventListener('click', downloadYoutube);
   $('#youtube-url-input').addEventListener('keydown', e => { if (e.key === 'Enter') downloadYoutube(); });
+  $('#youtube-url-input').addEventListener('input', e => {
+    const v = e.target.value;
+    // with no downloader there is nothing to wait for, so surface the
+    // capture route as soon as a youtube link appears
+    if (!YT_CONFIGURED && isYoutubeUrl(v)) showYtFallback(v.trim());
+    else hideYtFallback();
+  });
+  $('#btn-yt-open').addEventListener('click', () => {
+    const u = $('#yt-fallback').dataset.url;
+    if (!u) return;
+    window.open(/^https?:\/\//i.test(u) ? u : 'https://' + u, '_blank', 'noopener,noreferrer');
+    setStatus('press play over there, then come back and hit "capture tab".');
+  });
+  $('#btn-yt-capture').addEventListener('click', streamTab);
   $('#btn-youtube-cancel').addEventListener('click', () => { if (ytAbort) ytAbort.abort(); });
   $('#btn-yt-paste').addEventListener('click', async () => {
     try {
