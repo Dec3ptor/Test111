@@ -414,6 +414,18 @@
     }
     .jump-live-btn:hover { background: var(--text); color: var(--bg); }
 
+    .capture-row {
+      display: flex; gap: 10px; justify-content: center;
+      flex-wrap: wrap; margin-top: 10px;
+    }
+    .capture-row .jump-live-btn { margin: 0; }
+    .capture-done-btn {
+      flex: 0 0 auto; border-radius: 6px; padding: 9px 14px;
+      font-size: 0.75rem; line-height: 1; white-space: nowrap;
+      background: var(--main); color: var(--bg);
+    }
+    .capture-done-btn:hover { background: var(--main); color: var(--bg); filter: brightness(1.12); }
+
     .hint {
       margin-top: 14px; font-size: 0.625rem; line-height: 1.7;
       color: var(--sub); text-align: center;
@@ -484,7 +496,10 @@
           </div>
         </div>
 
-        <button class="jump-live-btn" id="btn-jump-live" hidden>jump to live</button>
+        <div class="capture-row" id="capture-row" hidden>
+          <button class="jump-live-btn" id="btn-jump-live">jump to live</button>
+          <button class="capture-done-btn" id="btn-capture-done">stop &amp; keep as track</button>
+        </div>
 
         <p class="hint">
           <kbd>space</kbd> play · <kbd>&larr;</kbd><kbd>&rarr;</kbd> seek · <kbd>L</kbd> loop ·
@@ -515,8 +530,9 @@
 
           <div class="yt-fallback" id="yt-fallback" hidden>
             <p>a browser can't pull audio off youtube on its own, and this host
-            has no downloader. play the video and capture its tab instead —
-            same result, and it works here:</p>
+            has no downloader. capture the tab instead — let the track play
+            through once, then keep it, and you can slow, reverb and export it
+            exactly like a file:</p>
             <div class="yt-fallback-row">
               <button id="btn-yt-open">1 · open video</button>
               <button id="btn-yt-capture">2 · capture tab</button>

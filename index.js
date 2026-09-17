@@ -117,13 +117,44 @@ class SRPlayer extends AudioWorkletProcessor {
       case 'stream': {
         this.mode = 'stream';
         this.srcRate = sampleRate;
-        this.capacity = Math.max(sampleRate * 4, Math.round(m.seconds * sampleRate));
-        this.chans = [new Float32Array(this.capacity), new Float32Array(this.capacity)];
-        this.frames = this.capacity;
+        // the ring doubles as the recording, so ask for as much as this
+        // device will give us and halve until the allocation succeeds
+        var cap = Math.max(sampleRate * 4, Math.round(m.seconds * sampleRate));
+        var got = false;
+        while (!got) {
+          try {
+            this.chans = [new Float32Array(cap), new Float32Array(cap)];
+            got = true;
+          } catch (e) {
+            if (cap <= sampleRate * 20) throw e;
+            cap = Math.floor(cap / 2);
+          }
+        }
+        this.capacity = cap;
+        this.frames = cap;
         this.writePos = 0;
         this.readPos = 0;
         this.ended = false;
         this.resetOla();
+        this.port.postMessage({ t: 'streamReady', seconds: cap / sampleRate });
+        break;
+      }
+
+      // hand back everything captured so far, oldest first, so the main
+      // thread can turn it into an ordinary track
+      case 'dump': {
+        if (this.mode !== 'stream') { this.port.postMessage({ t: 'dump', frames: 0 }); break; }
+        var total = Math.min(this.writePos, this.capacity);
+        var from = this.writePos - total;
+        var dl = new Float32Array(total), dr = new Float32Array(total);
+        for (var i = 0; i < total; i++) {
+          var k = (from + i) % this.capacity;
+          dl[i] = this.chans[0][k];
+          dr[i] = this.chans[1][k];
+        }
+        this.port.postMessage(
+          { t: 'dump', chans: [dl.buffer, dr.buffer], frames: total, srcRate: this.srcRate },
+          [dl.buffer, dr.buffer]);
         break;
       }
       case 'play':
@@ -981,7 +1012,9 @@ class Engine {
     this.writeHead = 0;
     this.playing = false;
     this.workletOK = false;
-    this.streamSeconds = 150;
+    this.streamSeconds = 420;   // the capture ring is also the recording
+    this.streamCapacity = 0;
+    this._dumpWaiters = [];
     this.params = Object.assign({}, DEFAULTS);
     this.onPos = null;
     this.onEnded = null;
@@ -1037,6 +1070,11 @@ class Engine {
       const m = e.data;
       if (m.t === 'pos') { this.position = m.pos; this.writeHead = m.write; }
       else if (m.t === 'ended') { this.playing = false; if (this.onEnded) this.onEnded(); }
+      else if (m.t === 'streamReady') { this.streamCapacity = m.seconds; }
+      else if (m.t === 'dump') {
+        const w = this._dumpWaiters.shift();
+        if (w) w(m);
+      }
     };
     this.node.connect(this.chain.input);
   }
@@ -1135,6 +1173,16 @@ class Engine {
   }
 
   jumpLive() { if (this.node) this.node.port.postMessage({ t: 'live' }); }
+
+  /* pull the captured audio back out of the worklet's ring */
+  dumpRecording() {
+    return new Promise((resolve, reject) => {
+      if (!this.node || this.mode !== 'stream') return reject(new Error('nothing is being captured'));
+      const timer = setTimeout(() => reject(new Error('capture read timed out')), 15000);
+      this._dumpWaiters.push(m => { clearTimeout(timer); resolve(m); });
+      this.node.port.postMessage({ t: 'dump' });
+    });
+  }
 
   setParams(patch, smooth = true) {
     Object.assign(this.params, patch);
@@ -1555,6 +1603,7 @@ let trackName = '';
 let activePreset = 'clean';
 let ytAbort = null;
 let analyserBuf = null;
+let captureName = '';
 
 /* ---- small helpers ------------------------------------------------ */
 
@@ -1792,7 +1841,7 @@ async function loadFromBlob(blob, name, autoplay) {
     $('#btn-play').disabled = false;
     $('#btn-export-wav').disabled = false;
     $('#btn-export-mp3').disabled = false;
-    $('#btn-jump-live').hidden = true;
+    $('#capture-row').hidden = true;
     setStatus(baseName(name) + ' · ' + fmtTime(buffer.duration) + ' · ready', 'ready');
     if (autoplay) { engine.play(); }
     updateSpin();
@@ -1837,14 +1886,20 @@ async function streamTab() {
     stream.getVideoTracks().forEach(t => t.stop());
     await engine.loadStream(stream);
     hideYtFallback();
+    // name the capture after the video id if a link was pasted
+    const pasted = ($('#youtube-url-input').value || '').trim();
+    const id = pasted.match(/(?:v=|youtu\.be\/|shorts\/|live\/|embed\/)([\w-]{6,})/);
+    captureName = id ? 'youtube ' + id[1] : 'tab capture';
     trackName = 'live tab';
     $('#track-name').textContent = 'live tab';
     wave.setLive();
     $('#btn-play').disabled = false;
-    $('#btn-jump-live').hidden = false;
+    $('#capture-row').hidden = false;
     $('#btn-export-wav').disabled = true;
     $('#btn-export-mp3').disabled = true;
-    setStatus('streaming the captured tab — slow it down live.', 'streaming');
+    const cap = engine.streamCapacity ? Math.floor(engine.streamCapacity / 60) + ' min' : 'a few minutes';
+    setStatus('capturing — let it play, then "stop & keep as track" to export. holds ' + cap + '.',
+              'streaming');
     updateSpin();
     stream.getAudioTracks()[0].addEventListener('ended', () => {
       setStatus('tab capture ended.');
@@ -1855,6 +1910,59 @@ async function streamTab() {
   } catch (err) {
     if (err && err.name === 'NotAllowedError') setStatus('capture cancelled.');
     else setStatus('capture failed: ' + err.message, 'error');
+  }
+}
+
+/* Capture starts before the video does, so drop the dead air either end
+ * rather than making the user scrub past it. */
+function trimSilence(l, r, sr, thresh = 0.0012) {
+  let s = 0, e = l.length - 1;
+  while (s < e && Math.abs(l[s]) < thresh && Math.abs(r[s]) < thresh) s++;
+  while (e > s && Math.abs(l[e]) < thresh && Math.abs(r[e]) < thresh) e--;
+  s = Math.max(0, s - Math.round(0.03 * sr));          // keep the attack
+  e = Math.min(l.length - 1, e + Math.round(0.25 * sr)); // and the fade
+  if (e - s < sr * 0.2) return { l, r };                // all quiet, keep as is
+  return { l: l.subarray(s, e + 1), r: r.subarray(s, e + 1) };
+}
+
+/* Turn whatever has been captured into an ordinary track, so it gets the
+ * waveform, seeking, loops and offline export like a loaded file. */
+async function captureToTrack() {
+  if (engine.mode !== 'stream') { setStatus('nothing is being captured.'); return; }
+  showBusy('collecting captured audio…');
+  try {
+    const dump = await engine.dumpRecording();
+    if (!dump.frames) throw new Error('nothing was captured yet');
+
+    const sr = dump.srcRate;
+    const cut = trimSilence(new Float32Array(dump.chans[0]), new Float32Array(dump.chans[1]), sr);
+    if (cut.l.length < sr * 0.2) throw new Error('the captured audio was silent — was "share tab audio" ticked?');
+
+    const buf = engine.ctx.createBuffer(2, cut.l.length, sr);
+    buf.copyToChannel(cut.l, 0);
+    buf.copyToChannel(cut.r, 1);
+
+    await engine.loadBuffer(buf);   // this also stops the capture
+
+    const name = (captureName || 'tab capture') + '.wav';
+    trackName = name;
+    hideYtFallback();
+    $('#track-name').textContent = baseName(name);
+    wave.setBuffer(buf);
+    engine.setParams({ loop: false, loopStart: 0, loopEnd: 0 });
+    syncToggles();
+    renderLoopInfo();
+    $('#capture-row').hidden = true;
+    $('#btn-play').disabled = false;
+    $('#btn-export-wav').disabled = false;
+    $('#btn-export-mp3').disabled = false;
+    updateSpin();
+    onFrame(0, 0);
+    setStatus('kept ' + fmtTime(buf.duration) + ' — now exportable.', 'ready');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  } finally {
+    hideBusy();
   }
 }
 
@@ -2114,6 +2222,7 @@ function init() {
   $('#btn-play').innerHTML = PLAY_SVG;
   $('#btn-play').addEventListener('click', togglePlay);
   $('#btn-jump-live').addEventListener('click', () => engine.jumpLive());
+  $('#btn-capture-done').addEventListener('click', captureToTrack);
   $('#btn-stream').addEventListener('click', streamTab);
   $('#btn-choose').addEventListener('click', () => $('#file-input').click());
   $('#btn-export-wav').addEventListener('click', () => doExport('wav'));

@@ -91,10 +91,18 @@ So it needs a server, and a static host has nowhere to run one.
 
 Paste a link and the app offers this instead. Open the video in a tab, come
 back, hit **capture tab**, and pick that tab with **share tab audio** ticked.
-The audio is then buffered and goes through the same engine — slow it down,
-drown it in reverb, and jump back to live whenever you want. The only thing
-you lose against a file is export, since there is no fixed-length source to
-render offline.
+
+Let the track play through, then press **stop & keep as track**. The captured
+audio is pulled out of the engine's ring buffer, silence either end is
+trimmed, and it becomes an ordinary loaded track — waveform, seeking, loop
+regions and offline export to WAV or MP3, exactly like a file. So a link ends
+up at the same place a download would, without a downloader.
+
+The ring is sized as large as the device allows (7 minutes at 48kHz on
+desktop, halved as needed until the allocation succeeds), and it keeps the
+most recent audio, so a capture longer than the ring keeps the end rather
+than failing. Chrome and Edge support tab audio capture; Firefox and Safari
+do not.
 
 ### Wiring up a downloader anyway
 
