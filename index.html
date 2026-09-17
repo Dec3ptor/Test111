@@ -529,10 +529,10 @@
           <button class="panel-btn" id="btn-youtube-download">load track</button>
 
           <div class="yt-fallback" id="yt-fallback" hidden>
-            <p>a browser can't pull audio off youtube on its own, and this host
-            has no downloader. capture the tab instead — let the track play
-            through once, then keep it, and you can slow, reverb and export it
-            exactly like a file:</p>
+            <p>a browser can't pull audio off youtube on its own, and the
+            downloader can't be reached. capture the tab instead — let the
+            track play through once, then keep it, and you can slow, reverb
+            and export it exactly like a file:</p>
             <div class="yt-fallback-row">
               <button id="btn-yt-open">1 · open video</button>
               <button id="btn-yt-capture">2 · capture tab</button>
@@ -714,12 +714,13 @@
   </div>
 
   <input class="file-input-native" type="file" id="file-input" accept="audio/*,video/*">
-  <!-- Loading by url needs a downloader you host; uncomment and point this
-       at yours. It must send Access-Control-Allow-Origin for this origin,
-       and expose Content-Disposition / Content-Length. See the README. -->
+  <!-- Loading by url uses the downloader built into index.js; uncomment and
+       point this at your own to override it. It must send
+       Access-Control-Allow-Origin for this origin, and expose
+       Content-Disposition / Content-Length. See the README. -->
   <!-- <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script> -->
 
   <!-- bump ?v= whenever index.js changes so pages/browser caches cannot serve a stale engine -->
-  <script src="index.js?v=20260917b"></script>
+  <script src="index.js?v=20260917c"></script>
 </body>
 </html>

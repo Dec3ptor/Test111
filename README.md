@@ -21,8 +21,10 @@ AudioWorklet and tab capture both need a secure context.
 
 Worth knowing:
 
-- **Pages is static, so there is no YouTube downloader.** Pasting a youtube
-  link offers tab capture instead, which needs no server. See below.
+- **Loading by url goes through a downloader on another origin**, since
+  Pages is static and a browser cannot pull audio off youtube itself. If that
+  downloader is unreachable, pasting a youtube link offers tab capture
+  instead, which needs no server. See below.
 - `<link rel="canonical">`, the Open Graph tags and the JSON-LD block in
   `index.html` point at `https://dec3ptor.github.io/Test111/`. Update all four
   if you move to a custom domain (and add a `CNAME` file for it).
@@ -106,11 +108,12 @@ do not.
 
 ### Wiring up a downloader
 
-Host it somewhere that runs code — the frontend stays on Pages, the
-downloader lives on its own origin. Note that downloading YouTube audio is
+`index.js` ships with a default endpoint, so loading by url works out of the
+box as long as that host is up. Note that downloading YouTube audio is
 against YouTube's Terms of Service; tab capture is not.
 
-Uncomment the line in `index.html` and point it at yours:
+To use your own instead — hosted somewhere that runs code, while the frontend
+stays on Pages — uncomment the line in `index.html` and point it at yours:
 
 ```html
 <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script>
@@ -124,10 +127,14 @@ works:
   until the stream ends) so the progress bar moves, and
   `content-disposition: attachment; filename="..."` to name the track. Both
   the RFC 5987 `filename*=UTF-8''...` form and the plain quoted form are read.
-- **JSON** — `{"url": "https://..."}`, also accepting `audioUrl`,
-  `audio_url`, `link`, `downloadUrl`, `download_url`. The browser then
-  fetches that url itself, so *it* needs CORS too. Streaming the bytes
-  through your own endpoint avoids that entirely.
+- **JSON** — `{"mediaInfo": {"title": "...", "audioUrl": "https://..."}}`,
+  the shape the default endpoint returns. The url is also read from
+  `mediaInfo.audio_url`, or from a top-level `audioUrl`, `audio_url`, `url`,
+  `link`, `downloadUrl` or `download_url`; `title` names the track, with
+  anything illegal in a filename replaced and `.mp3` appended if it carries
+  no extension. `{"success": false, "message": "..."}` is reported verbatim.
+  The browser fetches the audio url itself, so *it* needs CORS too. Streaming
+  the bytes through your own endpoint avoids that entirely.
 
 On failure, reply with JSON `{"error": "..."}` and the message is shown to
 the user verbatim instead of a bare status code.
