@@ -16,8 +16,12 @@ favicon.svg
 
 ## Running it
 
-Needs [Node][node] 18 or newer — `node -v` to check, and on macOS
-`brew install node` if it is missing.
+Needs [Node][node] 18 or newer, and [yt-dlp][yt-dlp] for youtube links. On
+macOS:
+
+```bash
+brew install node yt-dlp
+```
 
 ```bash
 git clone https://github.com/Dec3ptor/Test111
@@ -25,6 +29,8 @@ cd Test111
 npm install
 npm start
 ```
+
+[yt-dlp]: https://github.com/yt-dlp/yt-dlp
 
 Then open **http://localhost:3000**. Paste a youtube link and press play, or
 drop an audio file on the record.
@@ -137,8 +143,12 @@ do not.
 
 ### The downloader
 
-`api/youtube.js` is a serverless function: given `?url=<youtube url>` it
-resolves the best audio-only stream and pipes the bytes back. The client calls
+`api/youtube.js` resolves the best audio-only stream for `?url=<youtube url>`
+and pipes the bytes back. It asks `yt-dlp` first and falls back to
+`@distube/ytdl-core` where no binary can be installed, such as a serverless
+function. The fallback works only between youtube's changes — the pure-js
+extractors break every time the bot checks move, which is why yt-dlp is
+worth installing anywhere you can. The client calls
 it at `/api/youtube`, **same origin as the page**, which is the whole point —
 googlevideo.com sends no CORS headers, so a browser can never read a youtube
 media stream directly no matter how the client is written. Server-side that

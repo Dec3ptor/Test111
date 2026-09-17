@@ -12,6 +12,11 @@
  * — which does not fit in a serverless function — out of the picture. */
 
 import ytdl from '@distube/ytdl-core';
+import { execFile } from 'node:child_process';
+import { Readable } from 'node:stream';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 export const config = { maxDuration: 60 };
 
@@ -38,6 +43,49 @@ export function pickFormat(formats) {
   return pool.slice().sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0];
 }
 
+/* yt-dlp follows youtube's defences closely enough to keep working, which
+ * the pure-js extractors manage only between breakages, so prefer it
+ * wherever it exists. It cannot be installed into a serverless function, so
+ * ytdl-core stays as the fallback and this returns null when the binary is
+ * missing rather than failing the request. */
+async function resolveWithYtDlp(url) {
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync('yt-dlp', [
+      '--dump-single-json',
+      '--no-warnings',
+      // a link copied from a radio queue carries &list=; without this
+      // yt-dlp reads the playlist rather than the track that was playing
+      '--no-playlist',
+      '-f', 'bestaudio[ext=m4a]/bestaudio',
+      url
+    ], { maxBuffer: 64 * 1024 * 1024, timeout: 90000 }));
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    const e = new Error('yt-dlp could not read that video');
+    // its last lines say which of the many reasons this was
+    e.detail = String(err.stderr || err.message || err).trim().split('\n').slice(-3).join(' ');
+    throw e;
+  }
+
+  const j = JSON.parse(stdout);
+  const picked = (j.requested_downloads && j.requested_downloads[0]) || j;
+  if (!picked.url) {
+    const e = new Error('yt-dlp returned no audio stream');
+    e.detail = 'format: ' + (picked.format_id || 'unknown');
+    throw e;
+  }
+  return {
+    streamUrl: picked.url,
+    title: j.title || '',
+    ext: picked.ext === 'webm' ? '.webm' : '.m4a',
+    size: picked.filesize || picked.filesize_approx || 0,
+    // youtube serves the media url only to a caller that looks like the one
+    // that asked for it
+    headers: picked.http_headers || {}
+  };
+}
+
 export default async function handler(req, res) {
   // same-origin needs no CORS; this is only for a page hosted elsewhere,
   // such as the github pages copy pointed at this deployment
@@ -52,6 +100,45 @@ export default async function handler(req, res) {
   if (!url) return res.status(400).json({ error: "missing 'url' parameter" });
   if (!ytdl.validateURL(url)) return res.status(400).json({ error: 'that is not a youtube url' });
 
+  /* ---- yt-dlp, where it is installed ---- */
+  let viaYtDlp = null;
+  try {
+    viaYtDlp = await resolveWithYtDlp(url);
+  } catch (err) {
+    return res.status(502).json({ error: err.message, detail: err.detail || '' });
+  }
+
+  if (viaYtDlp) {
+    let upstream;
+    try {
+      upstream = await fetch(viaYtDlp.streamUrl, { headers: viaYtDlp.headers });
+    } catch (err) {
+      return res.status(502).json({
+        error: 'could not reach the audio stream',
+        detail: String((err && err.message) || err)
+      });
+    }
+    if (!upstream.ok || !upstream.body) {
+      return res.status(502).json({
+        error: 'the audio stream refused the request',
+        detail: 'upstream status ' + upstream.status
+      });
+    }
+
+    res.setHeader('content-type', upstream.headers.get('content-type') ||
+      (viaYtDlp.ext === '.webm' ? 'audio/webm' : 'audio/mp4'));
+    res.setHeader('content-disposition', contentDisposition(viaYtDlp.title, viaYtDlp.ext));
+    res.setHeader('cache-control', 'no-store');
+    const len = upstream.headers.get('content-length') || viaYtDlp.size;
+    if (len) res.setHeader('content-length', String(len));
+
+    const body = Readable.fromWeb(upstream.body);
+    body.on('error', err => { console.error('stream failed:', err); res.destroy(err); });
+    req.on('close', () => body.destroy());
+    return body.pipe(res);
+  }
+
+  /* ---- ytdl-core, for hosts with no binaries ---- */
   let info;
   try {
     info = await ytdl.getInfo(url);

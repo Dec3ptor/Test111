@@ -2074,7 +2074,12 @@ async function messageFromError(res) {
     if (ct.includes('application/json')) {
       const j = await res.json();
       const m = j.error || j.message;
-      if (m) return typeof m === 'string' ? m : (m.code || JSON.stringify(m));
+      // detail carries the downloader's own words, which are the difference
+      // between a report and something actionable
+      if (m) {
+        const text = typeof m === 'string' ? m : (m.code || JSON.stringify(m));
+        return j.detail ? text + ' — ' + j.detail : text;
+      }
     } else {
       const t = (await res.text()).trim();
       if (t && t.length < 200) return t;
