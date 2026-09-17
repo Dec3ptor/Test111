@@ -714,13 +714,13 @@
   </div>
 
   <input class="file-input-native" type="file" id="file-input" accept="audio/*,video/*">
-  <!-- Loading by url uses the downloader built into index.js; uncomment and
-       point this at your own to override it. It must send
-       Access-Control-Allow-Origin for this origin, and expose
+  <!-- Loading by url defaults to a local yt-audio-api at 127.0.0.1:5000;
+       uncomment and point this at another downloader to override it. It must
+       send Access-Control-Allow-Origin for this origin, and expose
        Content-Disposition / Content-Length. See the README. -->
   <!-- <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script> -->
 
   <!-- bump ?v= whenever index.js changes so pages/browser caches cannot serve a stale engine -->
-  <script src="index.js?v=20260917d"></script>
+  <script src="index.js?v=20260917e"></script>
 </body>
 </html>

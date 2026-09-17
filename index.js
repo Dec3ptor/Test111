@@ -1987,10 +1987,11 @@ async function captureToTrack() {
 /* ---- youtube -------------------------------------------------------- */
 
 /* A browser cannot fetch youtube audio itself, so loading by url goes
- * through a downloader. SRVB_YT_ENDPOINT overrides the default one (see
- * README). When the endpoint cannot be reached the app falls back to
- * capturing the tab, which needs no server. */
-const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || 'https://ahm7xmakki.com/api/alldl';
+ * through a downloader. The default is a local yt-audio-api instance;
+ * SRVB_YT_ENDPOINT points at another (see README). When the endpoint cannot
+ * be reached the app falls back to capturing the tab, which needs no
+ * server. */
+const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || 'http://127.0.0.1:5000/';
 const YT_CONFIGURED = true;
 const NO_BACKEND_MSG = 'youtube downloader unavailable — capture the tab instead:';
 
@@ -2063,6 +2064,22 @@ async function readWithProgress(res, onProgress) {
   return new Blob(parts, { type: res.headers.get('content-type') || 'audio/mpeg' });
 }
 
+/* yt-audio-api serves the converted file from /download, alongside the
+ * endpoint that handed out the token */
+function ytDownloadUrl(token) {
+  return new URL('download?token=' + encodeURIComponent(token),
+                 new URL(YT_ENDPOINT, location.href)).href;
+}
+
+/* it also names every file after a uuid, which says nothing about the
+ * track; the video id at least matches how a tab capture is named */
+const UUID_FILENAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.\w+$/i;
+
+function nameFromYoutubeUrl(url) {
+  const id = (url || '').match(/(?:v=|youtu\.be\/|shorts\/|live\/|embed\/)([\w-]{6,})/);
+  return id ? 'youtube ' + id[1] + '.mp3' : 'youtube audio.mp3';
+}
+
 /* a title straight off the api can carry path separators and control
  * characters, neither of which belong in a download name */
 function safeYoutubeFilename(title) {
@@ -2102,7 +2119,7 @@ async function downloadYoutube() {
   $('#btn-youtube-cancel').hidden = false;
   $('#download-progress').hidden = false;
   $('#download-progress').firstElementChild.style.width = '0%';
-  setStatus('fetching youtube audio…');
+  setStatus('converting on the server — this can take a while…');
 
   const progress = f => {
     const pct = Math.round(Math.min(Math.max(f, 0), 1) * 100);
@@ -2139,16 +2156,15 @@ async function downloadYoutube() {
     let youtubeFilename = 'youtube audio.mp3';
 
     if (contentType.includes('application/json')) {
-      /* AllDL answers with { success, mediaInfo: { title, audioUrl } } */
+      /* yt-audio-api answers with { token }, and other downloaders with a
+       * direct media url, so take whichever shape came back */
       const j = await res.json();
 
-      if (j.success === false) {
+      if (j.success === false || j.error) {
         throw new Error(j.message || j.error || 'youtube downloader returned an error');
       }
 
-      // the other keys keep older shapes working if SRVB_YT_ENDPOINT
-      // is later pointed at a different downloader
-      const link =
+      const link = j.token ? ytDownloadUrl(j.token) : (
         j.mediaInfo?.audioUrl ||
         j.mediaInfo?.audio_url ||
         j.audioUrl ||
@@ -2156,14 +2172,15 @@ async function downloadYoutube() {
         j.url ||
         j.link ||
         j.downloadUrl ||
-        j.download_url;
+        j.download_url);
 
       if (!link) {
         console.error('YouTube API response:', j);
         throw new Error('no audio url in the response');
       }
 
-      youtubeFilename = safeYoutubeFilename(j.mediaInfo?.title || j.title || 'youtube audio');
+      const title = j.mediaInfo?.title || j.title || '';
+      youtubeFilename = title ? safeYoutubeFilename(title) : nameFromYoutubeUrl(url);
       setStatus('audio found — downloading…');
 
       let r2;
@@ -2173,13 +2190,20 @@ async function downloadYoutube() {
         if (audioErr.name === 'AbortError') throw audioErr;
         throw new Error('could not download the returned audio file');
       }
-      if (!r2.ok) throw new Error('audio fetch returned ' + r2.status);
+      // yt-audio-api tokens are one-shot and expire after five minutes
+      if (r2.status === 401 || r2.status === 408) {
+        throw new Error('the download link expired before the fetch started — try again');
+      }
+      if (!r2.ok) throw new Error(await messageFromError(r2));
 
       blob = await readWithProgress(r2, progress);
 
-      // only fall back to the media url's own name when the api gave no title
+      // only fall back to the media url's own name when the api gave no
+      // title, and never to a bare uuid
       const dispositionName = filenameFromDisposition(r2);
-      if (dispositionName && !j.mediaInfo?.title && !j.title) youtubeFilename = dispositionName;
+      if (dispositionName && !title && !UUID_FILENAME_RE.test(dispositionName)) {
+        youtubeFilename = dispositionName;
+      }
     } else {
       // endpoints that hand back the bytes rather than a link
       blob = await readWithProgress(res, progress);

@@ -21,10 +21,10 @@ AudioWorklet and tab capture both need a secure context.
 
 Worth knowing:
 
-- **Loading by url goes through a downloader on another origin**, since
-  Pages is static and a browser cannot pull audio off youtube itself. If that
-  downloader is unreachable, pasting a youtube link offers tab capture
-  instead, which needs no server. See below.
+- **Loading by url goes through a downloader you run**, since Pages is
+  static and a browser cannot pull audio off youtube itself. With nothing
+  running, pasting a youtube link offers tab capture instead, which needs no
+  server. See below.
 - `<link rel="canonical">`, the Open Graph tags and the JSON-LD block in
   `index.html` point at `https://dec3ptor.github.io/Test111/`. Update all four
   if you move to a custom domain (and add a `CNAME` file for it).
@@ -108,33 +108,58 @@ do not.
 
 ### Wiring up a downloader
 
-`index.js` ships with a default endpoint, so loading by url works out of the
-box as long as that host is up. Note that downloading YouTube audio is
-against YouTube's Terms of Service; tab capture is not.
+Loading by url defaults to a local [yt-audio-api][yt-audio-api] instance at
+`http://127.0.0.1:5000/`, which you run yourself — it needs Python, `yt-dlp`
+and FFmpeg:
 
-To use your own instead — hosted somewhere that runs code, while the frontend
-stays on Pages — uncomment the line in `index.html` and point it at yours:
+```bash
+git clone https://github.com/alperensumeroglu/yt-audio-api
+cd yt-audio-api
+pip install -r requirements.txt
+python3 main.py
+```
+
+**It will not work unmodified from the Pages site.** It sends no
+`Access-Control-Allow-Origin`, so the browser blocks every response; see
+[CORS](#cors-since-the-endpoint-is-on-a-different-origin-to-pages) below.
+Note too that downloading YouTube audio is against YouTube's Terms of
+Service; tab capture is not.
+
+[yt-audio-api]: https://github.com/alperensumeroglu/yt-audio-api
+
+To point at a different downloader, uncomment the line in `index.html`:
 
 ```html
 <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script>
 ```
 
-It is called as `GET <endpoint>?url=<encoded youtube url>` and either shape
-works:
+It is called as `GET <endpoint>?url=<encoded youtube url>` and any of these
+shapes works:
 
 - **audio bytes directly** — any non-JSON content type. Send
   `content-length` (or `estimated-content-length` if the length is not known
   until the stream ends) so the progress bar moves, and
   `content-disposition: attachment; filename="..."` to name the track. Both
   the RFC 5987 `filename*=UTF-8''...` form and the plain quoted form are read.
-- **JSON** — `{"mediaInfo": {"title": "...", "audioUrl": "https://..."}}`,
-  the shape the default endpoint returns. The url is also read from
-  `mediaInfo.audio_url`, or from a top-level `audioUrl`, `audio_url`, `url`,
-  `link`, `downloadUrl` or `download_url`; `title` names the track, with
-  anything illegal in a filename replaced and `.mp3` appended if it carries
-  no extension. `{"success": false, "message": "..."}` is reported verbatim.
-  The browser fetches the audio url itself, so *it* needs CORS too. Streaming
-  the bytes through your own endpoint avoids that entirely.
+- **a token** — `{"token": "..."}`, what yt-audio-api returns. The bytes are
+  then fetched from `download?token=...` resolved against the endpoint url,
+  so an endpoint at `http://127.0.0.1:5000/` is paired with
+  `http://127.0.0.1:5000/download`. Tokens are one-shot and expire five
+  minutes after conversion finishes; `401` and `408` on that second request
+  are reported as an expired link rather than a bare status.
+- **a media url** — `{"mediaInfo": {"title": "...", "audioUrl": "https://..."}}`,
+  also read from `mediaInfo.audio_url` or a top-level `audioUrl`,
+  `audio_url`, `url`, `link`, `downloadUrl` or `download_url`. The browser
+  fetches that url itself, so *it* needs CORS too. Streaming the bytes
+  through your own endpoint avoids that entirely.
+- **audio bytes directly** — see above.
+
+`title`, where an endpoint sends one, names the track: anything illegal in a
+filename is replaced and `.mp3` appended if it carries no extension. With no
+title the name comes from the video id (`youtube dQw4w9WgXcQ.mp3`), matching
+how a tab capture is named — yt-audio-api names every file after a uuid, and
+a bare uuid is ignored in favour of the id. `{"error": "..."}` or
+`{"success": false, "message": "..."}` is reported verbatim.
 
 On failure, reply with JSON `{"error": "..."}` and the message is shown to
 the user verbatim instead of a bare status code.
@@ -146,6 +171,16 @@ Your endpoint **must** send:
 ```
 Access-Control-Allow-Origin: https://dec3ptor.github.io
 Access-Control-Expose-Headers: Content-Length, Estimated-Content-Length, Content-Disposition
+```
+
+yt-audio-api sends neither, so add them to its `main.py` before it will work
+from anywhere but a page opened off the same origin:
+
+```python
+from flask_cors import CORS   # pip install flask-cors
+
+app = Flask(__name__)
+CORS(app, expose_headers=['Content-Length', 'Content-Disposition'])
 ```
 
 Without the first, the browser blocks the response and the app cannot tell
