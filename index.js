@@ -1833,6 +1833,22 @@ function onFrame(pos, write) {
   });
 }
 
+/* An OfflineAudioContext renders to a buffer rather than the speakers, so
+ * it needs no user gesture and raises no autoplay warning — which makes it
+ * the right place to ask whether the worklet will load at all. */
+async function probeWorklet() {
+  const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!OAC || typeof AudioWorkletNode === 'undefined') return false;
+  try {
+    const probe = new OAC(1, 128, 44100);
+    if (!probe.audioWorklet) return false;
+    await probe.audioWorklet.addModule(WORKLET_URL);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 /* ---- loading -------------------------------------------------------- */
 
 async function loadFromBlob(blob, name, autoplay) {
@@ -2159,7 +2175,10 @@ async function downloadYoutube() {
       if (netErr.name === 'AbortError') throw netErr;
       // cross-origin failures land here too: a missing
       // Access-Control-Allow-Origin looks exactly like an outage
-      const e = new Error('could not reach youtube downloader');
+      const host = new URL(YT_ENDPOINT, location.href).hostname;
+      const e = new Error(YT_LOOPBACK_RE.test(host)
+        ? 'nothing is answering on ' + YT_ENDPOINT + ' — start it, then try again:'
+        : 'could not reach the downloader — capture the tab instead:');
       e.noBackend = true;
       throw e;
     }
@@ -2239,7 +2258,12 @@ async function downloadYoutube() {
     setStatus('youtube audio loaded.');
   } catch (err) {
     if (err.name === 'AbortError') setStatus('download cancelled.');
-    else if (err.noBackend) { setStatus(NO_BACKEND_MSG, 'error'); showYtFallback(url); }
+    else if (err.noBackend) {
+      // the thrown message names the actual remedy; NO_BACKEND_MSG is the
+      // generic stand-in for when there is nothing more specific to say
+      setStatus(err.message || NO_BACKEND_MSG, 'error');
+      showYtFallback(url);
+    }
     else {
       console.error('YouTube download failed:', err);
       setStatus('download failed: ' + (err.message || 'unknown error'), 'error');
@@ -2471,16 +2495,17 @@ function init() {
   window.addEventListener('dragover', e => e.preventDefault());
   window.addEventListener('drop', e => e.preventDefault());
 
-  // warn once if the browser cannot run the good engine
-  engine.ensure().then(() => {
-    if (!engine.workletOK) {
-      $('#engine-notice-text').innerHTML =
-        '<strong>limited mode.</strong> this browser has no AudioWorklet, so ' +
-        'time-stretch, tab streaming and export are unavailable.';
-      $('#engine-notice').hidden = false;
-    }
-  }).catch(err => {
-    $('#engine-notice-text').innerHTML = '<strong>audio unavailable.</strong> ' + err.message;
+  // warn once if the browser cannot run the good engine. this used to start
+  // the real context, which browsers refuse to do before a gesture and warn
+  // about on every load; an offline context answers the same question
+  // without asking for the speakers.
+  probeWorklet().then(ok => {
+    if (ok) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    $('#engine-notice-text').innerHTML = AC
+      ? '<strong>limited mode.</strong> this browser has no AudioWorklet, so ' +
+        'time-stretch, tab streaming and export are unavailable.'
+      : '<strong>audio unavailable.</strong> this browser has no web audio support.';
     $('#engine-notice').hidden = false;
   });
 
