@@ -529,10 +529,10 @@
           <button class="panel-btn" id="btn-youtube-download">load track</button>
 
           <div class="yt-fallback" id="yt-fallback" hidden>
-            <p>a browser can't pull audio off youtube on its own, and the
-            downloader can't be reached. capture the tab instead — let the
-            track play through once, then keep it, and you can slow, reverb
-            and export it exactly like a file:</p>
+            <p>a browser can't pull audio off youtube on its own — that needs
+            a server. capture the tab instead: let the track play through
+            once, then keep it, and you can slow, reverb and export it
+            exactly like a file. needs chrome or edge.</p>
             <div class="yt-fallback-row">
               <button id="btn-yt-open">1 · open video</button>
               <button id="btn-yt-capture">2 · capture tab</button>
@@ -713,7 +713,9 @@
     <div id="busy-text">working…</div>
   </div>
 
-  <input class="file-input-native" type="file" id="file-input" accept="audio/*,video/*">
+  <!-- no accept filter: the os greys out .opus/.flac/.m4a and anything else it
+       has no mime type for, and the decoder is the real judge of what loads -->
+  <input class="file-input-native" type="file" id="file-input">
   <!-- Loading by url defaults to a local yt-audio-api at 127.0.0.1:5000;
        uncomment and point this at another downloader to override it. It must
        send Access-Control-Allow-Origin for this origin, and expose
@@ -721,6 +723,6 @@
   <!-- <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script> -->
 
   <!-- bump ?v= whenever index.js changes so pages/browser caches cannot serve a stale engine -->
-  <script src="index.js?v=20260917f"></script>
+  <script src="index.js?v=20260917g"></script>
 </body>
 </html>

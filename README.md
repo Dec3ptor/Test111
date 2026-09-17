@@ -22,9 +22,11 @@ AudioWorklet and tab capture both need a secure context.
 Worth knowing:
 
 - **Loading by url goes through a downloader you run**, since Pages is
-  static and a browser cannot pull audio off youtube itself. With nothing
-  running, pasting a youtube link offers tab capture instead, which needs no
-  server. See below.
+  static and a browser cannot pull audio off youtube itself — googlevideo.com
+  sends no CORS headers, so a page cannot read a media url even when it has
+  one. On the hosted copy, pasting a youtube link offers tab capture
+  straight away rather than waiting on a request that cannot succeed. See
+  below.
 - `<link rel="canonical">`, the Open Graph tags and the JSON-LD block in
   `index.html` point at `https://dec3ptor.github.io/Test111/`. Update all four
   if you move to a custom domain (and add a `CNAME` file for it).

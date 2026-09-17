@@ -2005,8 +2005,15 @@ async function captureToTrack() {
  * be reached the app falls back to capturing the tab, which needs no
  * server. */
 const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || 'http://127.0.0.1:5000/';
-const YT_CONFIGURED = true;
-const NO_BACKEND_MSG = 'youtube downloader unavailable — capture the tab instead:';
+
+/* A loopback endpoint can only answer a page served from loopback too, so
+ * on a hosted copy there is nothing to ask and no point waiting for a fetch
+ * that can only fail: offer the capture route the moment a link appears. */
+const YT_LOOPBACK_RE = /^(localhost|127\.0\.0\.1|\[::1\])$/i;
+const YT_CONFIGURED =
+  !YT_LOOPBACK_RE.test(new URL(YT_ENDPOINT, location.href).hostname) ||
+  YT_LOOPBACK_RE.test(location.hostname);
+const NO_BACKEND_MSG = 'youtube links need a downloader — capture the tab instead:';
 
 const YT_RE = /^(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch|shorts|live|embed)|youtu\.be\/)/i;
 const isYoutubeUrl = u => YT_RE.test((u || '').trim());
