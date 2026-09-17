@@ -2015,12 +2015,13 @@ async function captureToTrack() {
 
 /* ---- youtube -------------------------------------------------------- */
 
-/* A browser cannot fetch youtube audio itself, so loading by url goes
- * through a downloader. The default is a local yt-audio-api instance;
- * SRVB_YT_ENDPOINT points at another (see README). When the endpoint cannot
- * be reached the app falls back to capturing the tab, which needs no
- * server. */
-const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || 'http://127.0.0.1:5000/';
+/* A browser cannot fetch youtube audio itself — googlevideo.com sends no
+ * CORS headers, so a page cannot read the stream even holding the url — so
+ * loading by url goes through /api/youtube, the serverless function in this
+ * repo. Same origin, so there is no CORS problem to solve and nothing to start.
+ * SRVB_YT_ENDPOINT points somewhere else (see README); on a static host
+ * there is no function, and the app falls back to capturing the tab. */
+const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || '/api/youtube';
 
 /* A loopback endpoint can only answer a page served from loopback too, so
  * on a hosted copy there is nothing to ask and no point waiting for a fetch
@@ -2053,11 +2054,16 @@ function hideYtFallback() {
 
 /* content-disposition, both the RFC 5987 form and the plain quoted one */
 function filenameFromDisposition(res) {
-  const name = (res.headers.get('content-disposition') || '')
-    .match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i)?.[1];
-  if (!name) return '';
-  try { return decodeURIComponent(name); }
-  catch (e) { return name; }
+  const cd = res.headers.get('content-disposition') || '';
+  // the rfc 5987 form carries the real utf-8 name and the plain one beside
+  // it is an ascii fallback, so read the starred form first wherever both
+  // are sent — matching in written order would pick the mangled one
+  const m = cd.match(/filename\*=\s*UTF-8''([^;]+)/i) ||
+            cd.match(/filename\s*=\s*"?([^";]+)"?/i);
+  if (!m || !m[1]) return '';
+  const raw = m[1].trim().replace(/^"|"$/g, '');
+  try { return decodeURIComponent(raw); }
+  catch (e) { return raw; }
 }
 
 /* a downloader that fails usually explains why in its body; a bare
@@ -2177,7 +2183,7 @@ async function downloadYoutube() {
       // Access-Control-Allow-Origin looks exactly like an outage
       const host = new URL(YT_ENDPOINT, location.href).hostname;
       const e = new Error(YT_LOOPBACK_RE.test(host)
-        ? 'nothing is answering on ' + YT_ENDPOINT + ' — start it, then try again:'
+        ? 'nothing is answering on ' + YT_ENDPOINT + ' — is the downloader running?'
         : 'could not reach the downloader — capture the tab instead:');
       e.noBackend = true;
       throw e;

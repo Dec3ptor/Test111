@@ -716,13 +716,14 @@
   <!-- no accept filter: the os greys out .opus/.flac/.m4a and anything else it
        has no mime type for, and the decoder is the real judge of what loads -->
   <input class="file-input-native" type="file" id="file-input">
-  <!-- Loading by url defaults to a local yt-audio-api at 127.0.0.1:5000;
-       uncomment and point this at another downloader to override it. It must
-       send Access-Control-Allow-Origin for this origin, and expose
-       Content-Disposition / Content-Length. See the README. -->
+  <!-- Loading by url uses /api/youtube, the serverless function in this repo,
+       which only exists on a host that runs code. Uncomment to point at a
+       deployment of it instead; a cross-origin one must send
+       Access-Control-Allow-Origin and expose Content-Disposition /
+       Content-Length. See the README. -->
   <!-- <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script> -->
 
   <!-- bump ?v= whenever index.js changes so pages/browser caches cannot serve a stale engine -->
-  <script src="index.js?v=20260917h"></script>
+  <script src="index.js?v=20260917i"></script>
 </body>
 </html>

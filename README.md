@@ -108,28 +108,54 @@ most recent audio, so a capture longer than the ring keeps the end rather
 than failing. Chrome and Edge support tab audio capture; Firefox and Safari
 do not.
 
-### Wiring up a downloader
+### The downloader
 
-Loading by url defaults to a local [yt-audio-api][yt-audio-api] instance at
-`http://127.0.0.1:5000/`, which you run yourself — it needs Python, `yt-dlp`
-and FFmpeg:
+`api/youtube.js` is a serverless function: given `?url=<youtube url>` it
+resolves the best audio-only stream and pipes the bytes back. The client calls
+it at `/api/youtube`, **same origin as the page**, which is the whole point —
+googlevideo.com sends no CORS headers, so a browser can never read a youtube
+media stream directly no matter how the client is written. Server-side that
+rule does not apply.
+
+Nothing is transcoded. Youtube's audio-only streams are already m4a or
+webm/opus and `decodeAudioData` reads both, so FFmpeg — which does not fit in
+a serverless function — never enters into it. m4a is preferred where offered,
+since webm/opus does not decode in Safari.
+
+Deploy it on [Vercel][vercel], which runs `/api/*` as functions and serves the
+rest of the repo as static files:
 
 ```bash
-git clone https://github.com/alperensumeroglu/yt-audio-api
-cd yt-audio-api
-pip install -r requirements.txt
-python3 main.py
+npm install -g vercel
+vercel deploy --prod
 ```
 
-**It will not work unmodified from the Pages site.** It sends no
-`Access-Control-Allow-Origin`, so the browser blocks every response; see
-[CORS](#cors-since-the-endpoint-is-on-a-different-origin-to-pages) below.
-Note too that downloading YouTube audio is against YouTube's Terms of
-Service; tab capture is not.
+[vercel]: https://vercel.com
 
-[yt-audio-api]: https://github.com/alperensumeroglu/yt-audio-api
+**GitHub Pages cannot host this.** Pages is static only, so `/api/youtube`
+404s there and the app falls back to tab capture, which needs no server.
 
-To point at a different downloader, uncomment the line in `index.html`:
+Expect it to break periodically: youtube blocks datacenter addresses in
+waves, and a serverless function is a datacenter address. The function reports
+that case as "youtube refused this server" rather than a generic error, but
+there is no fixing it from the client side. An always-on host with a
+residential-ish address is steadier.
+
+To call the function from a copy of the page hosted elsewhere — the Pages
+copy, say — set `ALLOWED_ORIGIN` in the Vercel project to that origin, and
+point the page at the deployment:
+
+```html
+<script>window.SRVB_YT_ENDPOINT = 'https://your-app.vercel.app/api/youtube';</script>
+```
+
+### Pointing at a different downloader
+
+Note that downloading YouTube audio is against YouTube's Terms of Service;
+tab capture is not.
+
+Uncomment the line in `index.html` to use something other than the bundled
+function:
 
 ```html
 <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script>
