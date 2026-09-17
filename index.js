@@ -1868,16 +1868,30 @@ async function handleFile(file, fromLibrary) {
   }
 }
 
+/* The processing constraints matter — echo cancellation on a music capture
+ * sounds like a phone call. But an engine that cannot share tab audio at all
+ * rejects the whole constraint object rather than ignoring it, so ask plainly
+ * on the second attempt before blaming the browser. */
+async function requestTabStream() {
+  try {
+    return await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+  } catch (err) {
+    // a cancelled picker must not reopen the picker
+    if (err && (err.name === 'NotAllowedError' || err.name === 'AbortError')) throw err;
+    return navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+  }
+}
+
 async function streamTab() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
     setStatus('tab capture is not supported in this browser.', 'error');
     return;
   }
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-    });
+    const stream = await requestTabStream();
     if (!stream.getAudioTracks().length) {
       stream.getTracks().forEach(t => t.stop());
       setStatus('no audio in that capture — tick "share tab audio".', 'error');
@@ -1908,8 +1922,12 @@ async function streamTab() {
       updateSpin();
     });
   } catch (err) {
-    if (err && err.name === 'NotAllowedError') setStatus('capture cancelled.');
-    else setStatus('capture failed: ' + err.message, 'error');
+    const name = err && err.name;
+    if (name === 'NotAllowedError' || name === 'AbortError') setStatus('capture cancelled.');
+    // safari and firefox have no display-capture audio track to give
+    else if (name === 'NotFoundError' || name === 'NotSupportedError' || name === 'OverconstrainedError')
+      setStatus('this browser will not share tab audio — chrome or edge can.', 'error');
+    else setStatus('capture failed: ' + (err && err.message || 'unknown error'), 'error');
   }
 }
 
