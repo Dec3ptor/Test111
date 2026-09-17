@@ -1021,6 +1021,7 @@ class Engine {
     this._stream = null;
     this._streamSrc = null;
     this._raf = 0;
+    this._starting = null;
   }
 
   async ensure() {
@@ -1028,6 +1029,18 @@ class Engine {
       if (this.ctx.state === 'suspended') await this.ctx.resume();
       return;
     }
+    // a click on play while a file is still loading would otherwise build
+    // a second context and leave the first one orphaned
+    if (this._starting) {
+      await this._starting;
+      if (this.ctx && this.ctx.state === 'suspended') await this.ctx.resume();
+      return;
+    }
+    this._starting = this._start();
+    try { await this._starting; } finally { this._starting = null; }
+  }
+
+  async _start() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) throw new Error('this browser has no web audio support');
     this.ctx = new AC({ latencyHint: 'playback' });
@@ -2422,6 +2435,18 @@ function init() {
     await library.clear();
     renderLibrary();
   });
+
+  /* An AudioContext built mid-await is built without user activation, which
+   * browsers refuse to start: the click that began a youtube download has
+   * expired long before the converted bytes land. Build it on the first
+   * gesture instead, whatever that gesture happens to be. */
+  const PRIME_EVENTS = ['pointerdown', 'keydown', 'touchstart'];
+  const primeAudio = () => {
+    PRIME_EVENTS.forEach(t => window.removeEventListener(t, primeAudio, true));
+    // a real load reports its own failure; this is only a head start
+    engine.ensure().catch(() => {});
+  };
+  PRIME_EVENTS.forEach(t => window.addEventListener(t, primeAudio, true));
 
   // drag and drop onto the record
   const disc = $('#disc');
