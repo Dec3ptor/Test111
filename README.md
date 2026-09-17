@@ -1,15 +1,42 @@
 # slowedrvb — high quality slow + reverb
 
 A browser slowed-and-reverb tool, focused on playback and editing quality.
-Everything runs client side, so it is a plain static site:
+The audio engine is entirely client side; the only thing that needs a server
+is loading a track from a youtube link, which a browser cannot do by itself.
 
 ```
-index.html   markup + styles
-index.js     the whole audio engine and UI
-stick.svg    tonearm
+index.html      markup + styles
+index.js        the whole audio engine and UI
+api/youtube.js  serverless function: youtube link -> audio bytes
+server.js       runs the page and that function together, locally
+stick.svg       tonearm
 favicon.svg
-.nojekyll    tells github pages to serve the files as-is
+.nojekyll       tells github pages to serve the files as-is
 ```
+
+## Running it
+
+Needs [Node][node] 18 or newer — `node -v` to check, and on macOS
+`brew install node` if it is missing.
+
+```bash
+git clone https://github.com/Dec3ptor/Test111
+cd Test111
+npm install
+npm start
+```
+
+Then open **http://localhost:3000**. Paste a youtube link and press play, or
+drop an audio file on the record.
+
+[node]: https://nodejs.org
+
+Running it this way matters for youtube links specifically: the request goes
+out from your own connection, and youtube blocks the datacenter addresses
+every host deploys to. See [YouTube links](#youtube-links) below.
+
+Everything except youtube links — files, tab capture, the whole engine —
+works from any static host with no install at all.
 
 ## Hosting on GitHub Pages
 
