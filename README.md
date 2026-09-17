@@ -104,25 +104,52 @@ most recent audio, so a capture longer than the ring keeps the end rather
 than failing. Chrome and Edge support tab audio capture; Firefox and Safari
 do not.
 
-### Wiring up a downloader anyway
+### Wiring up a downloader
 
-Host one somewhere that can run code (a small serverless function is plenty,
-with CORS allowing your Pages origin). Note that downloading YouTube audio is
-against YouTube's Terms of Service; tab capture is not. The client calls:
+Host it somewhere that runs code — the frontend stays on Pages, the
+downloader lives on its own origin. Note that downloading YouTube audio is
+against YouTube's Terms of Service; tab capture is not.
 
-```
-GET <endpoint>?url=<encoded youtube url>
-```
-
-and accepts either the audio bytes directly, or JSON containing a link in
-`url`, `audioUrl`, `link` or `downloadUrl`. It defaults to `/api/youtube`.
-Point it at your backend by setting the global before `index.js` loads:
+Uncomment the line in `index.html` and point it at yours:
 
 ```html
-<script>window.SRVB_YT_ENDPOINT = '/api/your-downloader';</script>
-<script src="index.js"></script>
+<script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script>
 ```
 
+It is called as `GET <endpoint>?url=<encoded youtube url>` and either shape
+works:
+
+- **audio bytes directly** — any non-JSON content type. Send
+  `content-length` (or `estimated-content-length` if the length is not known
+  until the stream ends) so the progress bar moves, and
+  `content-disposition: attachment; filename="..."` to name the track. Both
+  the RFC 5987 `filename*=UTF-8''...` form and the plain quoted form are read.
+- **JSON** — `{"url": "https://..."}`, also accepting `audioUrl`,
+  `audio_url`, `link`, `downloadUrl`, `download_url`. The browser then
+  fetches that url itself, so *it* needs CORS too. Streaming the bytes
+  through your own endpoint avoids that entirely.
+
+On failure, reply with JSON `{"error": "..."}` and the message is shown to
+the user verbatim instead of a bare status code.
+
+#### CORS, since the endpoint is on a different origin to Pages
+
+Your endpoint **must** send:
+
+```
+Access-Control-Allow-Origin: https://dec3ptor.github.io
+Access-Control-Expose-Headers: Content-Length, Estimated-Content-Length, Content-Disposition
+```
+
+Without the first, the browser blocks the response and the app cannot tell
+that apart from the server being down — it reports the endpoint as
+unreachable and offers tab capture. Without the second, the download still
+works but arrives unnamed and with no progress bar, because cross-origin
+JavaScript cannot read headers that are not explicitly exposed.
+
+`404` and `405` are treated as "no downloader here" and also fall back to
+tab capture, so an endpoint behind a typo degrades gracefully rather than
+looking broken.
 
 ## Browser support
 

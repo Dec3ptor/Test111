@@ -714,7 +714,12 @@
   </div>
 
   <input class="file-input-native" type="file" id="file-input" accept="audio/*,video/*">
+  <!-- Loading by url needs a downloader you host; uncomment and point this
+       at yours. It must send Access-Control-Allow-Origin for this origin,
+       and expose Content-Disposition / Content-Length. See the README. -->
+  <!-- <script>window.SRVB_YT_ENDPOINT = 'https://your-server.example.com/api/youtube';</script> -->
+
   <!-- bump ?v= whenever index.js changes so pages/browser caches cannot serve a stale engine -->
-  <script src="index.js?v=20260917a"></script>
+  <script src="index.js?v=20260917b"></script>
 </body>
 </html>

@@ -1968,9 +1968,10 @@ async function captureToTrack() {
 
 /* ---- youtube -------------------------------------------------------- */
 
-/* Loading by URL needs a server; a browser cannot fetch youtube audio
- * itself. On a static host (github pages and friends) there is nothing
- * behind this path, so say that plainly rather than showing a raw 404. */
+/* A browser cannot fetch youtube audio itself, so loading by url needs a
+ * downloader you host. Point SRVB_YT_ENDPOINT at it (see README). With
+ * nothing configured, or when the endpoint cannot be reached, the app
+ * falls back to capturing the tab, which needs no server. */
 const YT_CONFIGURED = !!window.SRVB_YT_ENDPOINT;
 const YT_ENDPOINT = window.SRVB_YT_ENDPOINT || '/api/youtube';
 const NO_BACKEND_MSG = 'no downloader on this host — capture the tab instead:';
@@ -1979,9 +1980,8 @@ const YT_RE = /^(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch|
 const isYoutubeUrl = u => YT_RE.test((u || '').trim());
 
 /* Offer the tab-capture route. A page cannot fetch youtube audio itself
- * (googlevideo.com sends no CORS headers) and a static host has nothing
- * to run a downloader on, so capturing the tab while it plays is the
- * only thing that actually works here. */
+ * (googlevideo.com sends no CORS headers), so capturing the tab while it
+ * plays is what works when there is no downloader. */
 function showYtFallback(url) {
   const box = document.getElementById('yt-fallback');
   box.hidden = false;
@@ -1993,18 +1993,55 @@ function hideYtFallback() {
   document.getElementById('yt-fallback').hidden = true;
 }
 
+/* content-disposition, both the RFC 5987 form and the plain quoted one */
+function filenameFromResponse(res, fallback) {
+  const cd = res.headers.get('content-disposition') || '';
+  let m = cd.match(/filename\*=\s*UTF-8''([^;]+)/i);
+  if (m && m[1]) {
+    try { return decodeURIComponent(m[1].trim().replace(/^"|"$/g, '')); }
+    catch (e) { /* malformed encoding, try the plain form */ }
+  }
+  m = cd.match(/filename\s*=\s*"?([^";]+)"?/i);
+  if (m && m[1]) return m[1].trim();
+  return fallback;
+}
+
+/* a downloader that fails usually explains why in its body; a bare
+ * status code tells the user nothing they can act on */
+async function messageFromError(res) {
+  const ct = res.headers.get('content-type') || '';
+  try {
+    if (ct.includes('application/json')) {
+      const j = await res.json();
+      const m = j.error || j.message;
+      if (m) return typeof m === 'string' ? m : (m.code || JSON.stringify(m));
+    } else {
+      const t = (await res.text()).trim();
+      if (t && t.length < 200) return t;
+    }
+  } catch (e) { /* unreadable body, fall back to the status */ }
+  return 'server returned ' + res.status;
+}
+
 async function readWithProgress(res, onProgress) {
-  const total = parseInt(res.headers.get('content-length') || '0', 10);
-  if (!res.body || !total) return res.blob();
+  // a proxied stream often has no content-length, so honour the
+  // estimated-content-length some downloaders send instead
+  const total = parseInt(
+    res.headers.get('content-length') ||
+    res.headers.get('estimated-content-length') || '0', 10);
+
+  if (!res.body || !total || !isFinite(total)) return res.blob();
+
   const reader = res.body.getReader();
   const parts = [];
   let got = 0;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
+    if (!value) continue;
     parts.push(value);
-    got += value.length;
-    onProgress(got / total);
+    got += value.byteLength;
+    onProgress(Math.min(got / total, 1));
   }
   return new Blob(parts, { type: res.headers.get('content-type') || 'audio/mpeg' });
 }
@@ -2019,8 +2056,16 @@ async function downloadYoutube() {
     showYtFallback(url);
     return;
   }
+  if (!isYoutubeUrl(url)) {
+    setStatus('that does not look like a youtube link.', 'error');
+    return;
+  }
 
+  hideYtFallback();
+  if (ytAbort) ytAbort.abort();
   ytAbort = new AbortController();
+  const mine = ytAbort;
+
   $('#btn-youtube-cancel').hidden = false;
   $('#download-progress').hidden = false;
   $('#download-progress').firstElementChild.style.width = '0%';
@@ -2034,36 +2079,43 @@ async function downloadYoutube() {
   try {
     let res;
     try {
-      res = await fetch(YT_ENDPOINT + '?url=' + encodeURIComponent(url), { signal: ytAbort.signal });
+      res = await fetch(YT_ENDPOINT + '?url=' + encodeURIComponent(url), { signal: mine.signal });
     } catch (netErr) {
       if (netErr.name === 'AbortError') throw netErr;
-      const e = new Error('could not reach ' + YT_ENDPOINT);
+      // cross-origin failures land here too: a missing
+      // Access-Control-Allow-Origin looks exactly like an outage
+      const e = new Error('could not reach ' + YT_ENDPOINT + ' (offline, or CORS not allowing this origin)');
       e.noBackend = true;
       throw e;
     }
+
     if (res.status === 404 || res.status === 405) {
       const e = new Error('no downloader at ' + YT_ENDPOINT);
       e.noBackend = true;
       throw e;
     }
-    if (!res.ok) throw new Error('server returned ' + res.status);
+    if (!res.ok) throw new Error(await messageFromError(res));
 
-    let blob;
+    const name = filenameFromResponse(res, 'youtube audio.mp3');
     const ct = res.headers.get('content-type') || '';
+    let blob;
+
     if (ct.includes('application/json')) {
+      // endpoints that hand back a link instead of the bytes
       const j = await res.json();
-      const link = j.url || j.audioUrl || j.link || j.downloadUrl;
+      const link = j.url || j.audioUrl || j.audio_url || j.link || j.downloadUrl || j.download_url;
       if (!link) throw new Error('no audio url in the response');
-      const r2 = await fetch(link, { signal: ytAbort.signal });
+      setStatus('fetching audio file…');
+      const r2 = await fetch(link, { signal: mine.signal });
       if (!r2.ok) throw new Error('audio fetch returned ' + r2.status);
       blob = await readWithProgress(r2, progress);
     } else {
       blob = await readWithProgress(res, progress);
     }
 
-    const name = decodeURIComponent(
-      (res.headers.get('content-disposition') || '').match(/filename\*?=(?:UTF-8'')?"?([^";]+)/i)?.[1] || ''
-    ) || 'youtube audio.mp3';
+    if (!blob || !blob.size) throw new Error('the download was empty');
+    progress(1);
+    setStatus('decoding…');
 
     await handleFile(new File([blob], name, { type: blob.type || 'audio/mpeg' }), false);
   } catch (err) {
@@ -2071,7 +2123,7 @@ async function downloadYoutube() {
     else if (err.noBackend) { setStatus(NO_BACKEND_MSG, 'error'); showYtFallback(url); }
     else setStatus('download failed: ' + err.message, 'error');
   } finally {
-    ytAbort = null;
+    if (ytAbort === mine) ytAbort = null;
     $('#btn-youtube-cancel').hidden = true;
     $('#download-progress').hidden = true;
   }
