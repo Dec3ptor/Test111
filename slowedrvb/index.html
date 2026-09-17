@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>slow playback audio — slow + reverb any track</title>
+
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+
+  <!-- SEO -->
+  <meta name="description" content="Slow any song down and drench it in studio-grade reverb, bass boost, and 8D audio — right in your browser. Upload an mp3 or slow a live tab, then export lossless wav or 320k mp3. Free, no signup.">
+  <meta name="keywords" content="slowed reverb, slow down audio, slowed and reverb maker, 8d audio, bass boost, mp3 slower, pitch shift, time stretch, slowedrvb">
+  <link rel="canonical" href="https://slowedrvb.com/">
+  <meta name="robots" content="index, follow">
+
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="slow playback audio — slow + reverb any track">
+  <meta property="og:description" content="Slow any song down and drench it in studio-grade reverb, bass boost, and 8D audio — right in your browser. Free, no signup.">
+  <meta property="og:url" content="https://slowedrvb.com/">
+  <meta property="og:image" content="https://slowedrvb.com/stick.svg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="slow playback audio — slow + reverb any track">
+  <meta name="twitter:description" content="Slow any song down and drench it in studio-grade reverb, bass boost, and 8D audio — right in your browser. Free, no signup.">
+
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebApplication","name":"slow playback audio","url":"https://slowedrvb.com/","applicationCategory":"MultimediaApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Slow any song down and drench it in studio-grade reverb, bass boost, and 8D audio in your browser."}
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #323437;
+      --main: #e2b714;
+      --sub: #646669;
+      --sub-alt: #2c2e31;
+      --text: #d1d0c5;
+      --error: #ca4754;
+      --pink: #ff007a;
+      --inner: #262626;
+      --rotation-duration: 1.8s;
+      --vinyl-clearance: 90px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    [hidden] { display: none !important; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .vinyl-col > *, .controls-col > * { opacity: 0; animation: fadeIn 0.2s ease forwards; }
+    .vinyl-col > *:nth-child(1), .controls-col > *:nth-child(1) { animation-delay: 0.025s; }
+    .vinyl-col > *:nth-child(2), .controls-col > *:nth-child(2) { animation-delay: 0.05s; }
+    .vinyl-col > *:nth-child(3), .controls-col > *:nth-child(3) { animation-delay: 0.075s; }
+    .vinyl-col > *:nth-child(4), .controls-col > *:nth-child(4) { animation-delay: 0.10s; }
+    .vinyl-col > *:nth-child(5), .controls-col > *:nth-child(5) { animation-delay: 0.125s; }
+    .vinyl-col > *:nth-child(6), .controls-col > *:nth-child(6) { animation-delay: 0.15s; }
+    .vinyl-col > *:nth-child(7), .controls-col > *:nth-child(7) { animation-delay: 0.175s; }
+    .vinyl-col > *:nth-child(8), .controls-col > *:nth-child(8) { animation-delay: 0.20s; }
+    @media (prefers-reduced-motion: reduce) {
+      .vinyl-col > *, .controls-col > * { opacity: 1; animation: none; }
+      .disc.spinning { animation: none; }
+    }
+
+    body {
+      font-family: 'Roboto Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      font-variant-ligatures: none;
+      overflow-x: hidden;
+    }
+
+    .card { width: 100%; max-width: 1080px; }
+
+    .notice {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 20px; padding: 12px 16px;
+      border-radius: 8px; border-left: 4px solid var(--main);
+      background: var(--sub-alt); color: var(--sub);
+      font-size: 0.8125rem; line-height: 1.45;
+    }
+    .notice-icon {
+      flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--main); color: var(--bg);
+      font-size: 0.75rem; font-weight: 700; line-height: 1;
+    }
+    .notice strong { color: var(--text); font-weight: 500; }
+
+    .layout { display: flex; gap: 32px; align-items: stretch; }
+    .vinyl-col {
+      flex: 1 1 50%; min-width: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+    }
+    .controls-col { flex: 1 1 50%; min-width: 0; }
+    @media (max-width: 760px) { .layout { flex-direction: column; gap: 24px; } }
+
+    h1 { font-size: 1.5rem; font-weight: 600; color: var(--main); letter-spacing: -0.01em; }
+    h1::before { content: '> '; color: var(--sub); }
+    .subtitle { font-size: 0.8125rem; color: var(--sub); margin: 6px 0 20px; line-height: 1.6; }
+
+    .controls { display: flex; gap: 8px; margin-top: 16px; margin-bottom: 8px; }
+
+    button {
+      flex: 1; padding: 11px 14px; border: none; border-radius: 8px;
+      font-family: inherit; font-size: 0.8125rem; font-weight: 500;
+      color: var(--sub); background: var(--sub-alt); cursor: pointer;
+      transition: color 0.12s, background 0.12s, transform 0.1s, filter 0.12s;
+    }
+    button:hover { background: var(--text); color: var(--bg); }
+    button:active { transform: scale(0.97); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button:focus-visible, input:focus-visible, label:focus-visible {
+      outline: 2px solid var(--main); outline-offset: 2px;
+    }
+
+    .btn-stream { background: var(--pink); color: var(--text); }
+    .btn-stream:hover { background: var(--pink); color: var(--text); filter: brightness(1.12); }
+    .btn-choose { background: var(--main); color: var(--bg); }
+    .btn-choose:hover { background: var(--main); color: var(--bg); filter: brightness(1.12); }
+    .btn-export { background: var(--sub-alt); color: var(--text); }
+    .btn-export:hover { background: var(--text); color: var(--bg); }
+
+    .youtube-status-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+    .youtube-status-row .status {
+      flex: 1 1 auto; min-width: 0; margin: 0; text-align: left;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .youtube-cancel-btn {
+      flex: 0 0 auto; min-width: 44px; padding: 4px 8px;
+      background: transparent; color: var(--error); font-size: 0.75rem; line-height: 1;
+    }
+    .youtube-cancel-btn:hover { background: transparent; color: var(--text); }
+
+    .youtube-url-row { display: flex; gap: 10px; align-items: stretch; }
+
+    .mobile-field {
+      flex: 1 1 auto; width: auto; min-width: 0;
+      border: 3px solid rgba(255, 0, 122, 0.6); border-radius: 8px;
+      padding: 12px 14px; font-family: inherit; font-size: 0.8125rem;
+      color: var(--text); background: var(--sub-alt); outline: none;
+    }
+    .mobile-field:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(255, 0, 122, 0.18); }
+    .mobile-field[readonly] { color: var(--sub); cursor: progress; }
+    .mobile-field::placeholder { color: var(--sub); }
+
+    #btn-yt-paste {
+      flex: 0 0 44px; min-width: 44px; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--sub-alt); color: var(--sub);
+    }
+    #btn-yt-paste:hover { background: var(--sub-alt); color: var(--text); }
+
+    .panel-btn {
+      display: block; width: 100%; margin-top: 10px; border-radius: 6px;
+      padding: 11px 14px; background: var(--main); color: var(--bg);
+      border: none; font-family: inherit; font-size: 0.8125rem; font-weight: 500;
+      line-height: normal; text-align: center; text-decoration: none; cursor: pointer;
+    }
+    .panel-btn:hover { background: var(--main); color: var(--bg); filter: brightness(1.12); }
+
+    #btn-saved-songs { background: var(--pink); color: var(--text); }
+    #btn-saved-songs:hover { background: var(--pink); color: var(--text); filter: brightness(1.12); }
+    #btn-clear-songs { background: var(--sub-alt); color: var(--sub); margin-top: 8px; }
+    #btn-clear-songs:hover { background: var(--sub-alt); color: var(--error); filter: none; }
+
+    .progress-track {
+      height: 4px; margin-top: 10px; border-radius: 999px;
+      background: var(--sub-alt); overflow: hidden;
+    }
+    .progress-track > i {
+      display: block; height: 100%; width: 0%;
+      background: var(--main); transition: width 0.15s linear;
+    }
+
+    .file-input-native {
+      position: fixed; left: 0; bottom: 0;
+      width: 1px; height: 1px; opacity: 0; overflow: hidden;
+    }
+
+    .saved-songs-list { list-style: none; margin: 10px 0 0; padding: 0; max-height: 220px; overflow-y: auto; }
+    .saved-songs-list li {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 8px; padding: 10px 12px; border-radius: 8px;
+      background: var(--sub-alt); color: var(--text); font-size: 0.8125rem;
+    }
+    .saved-songs-list li .song-name {
+      flex: 1 1 auto; min-width: 0; text-align: left; padding: 0; background: none;
+      color: inherit; font-size: inherit; font-weight: 400;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .saved-songs-list li .song-name:hover { background: none; color: var(--main); }
+    .saved-songs-list li .song-meta { flex: 0 0 auto; color: var(--sub); font-size: 0.6875rem; }
+    .saved-songs-list li .song-del {
+      flex: 0 0 auto; width: 26px; padding: 4px 0; background: transparent; color: var(--sub);
+    }
+    .saved-songs-list li .song-del:hover { background: transparent; color: var(--error); }
+    .saved-songs-list li.empty { color: var(--sub); justify-content: center; }
+
+    .advanced-toggle {
+      width: 100%; margin-top: 12px; background: transparent; color: var(--sub);
+      font-size: 0.6875rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; padding: 9px;
+    }
+    .advanced-toggle:hover { background: var(--sub-alt); color: var(--text); }
+
+    .preset-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; margin-bottom: 4px; }
+    .preset-btn {
+      flex: 1 1 30%; min-width: 0; margin: 0; padding: 10px 6px;
+      background: var(--sub-alt); color: var(--sub);
+      letter-spacing: 0.04em; font-weight: 600; font-size: 0.6875rem;
+      text-transform: uppercase; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .preset-btn:hover { background: var(--sub-alt); color: var(--text); filter: brightness(1.3); }
+    .preset-btn.active, .preset-btn.active:hover {
+      background: var(--main); color: var(--bg); filter: none;
+    }
+
+    .toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .toggle-row + .toggle-row { margin-top: 14px; }
+    .toggle-row .label {
+      font-size: 0.75rem; color: var(--sub);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .toggle-row .label small {
+      display: block; margin-top: 3px; font-size: 0.625rem; color: var(--sub);
+      text-transform: none; letter-spacing: 0;
+    }
+    /* the panel itself is --sub-alt, so an inactive toggle needs a
+       darker fill or it reads as plain text rather than a button */
+    button.toggle { flex: 0 0 62px; padding: 8px 0; background: var(--bg); }
+    button.toggle:hover { background: var(--text); color: var(--bg); }
+    button.toggle.active, button.toggle.active:hover { background: var(--main); color: var(--bg); }
+
+    /* ---- vinyl player ---- */
+    .vinyl-player {
+      position: relative;
+      width: min(500px, calc(100% - var(--vinyl-clearance)));
+      aspect-ratio: 1 / 1;
+      margin: 0 var(--vinyl-clearance) 0 auto;
+    }
+    .disc {
+      width: 100%; height: 100%; border-radius: 50%;
+      background:
+        repeating-radial-gradient(circle at 50% 50%,
+          rgba(0,0,0,0.055) 0 1px, rgba(255,255,255,0.02) 1px 3px),
+        conic-gradient(from 0deg,
+          rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.07),
+          rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.14)),
+        var(--text);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+    }
+    .disc.spinning { animation: spin var(--rotation-duration) linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .disc.dragover { outline: 3px dashed var(--pink); outline-offset: 10px; }
+
+    .inner-disc {
+      width: 34%; height: 34%; border-radius: 50%; background: var(--inner);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.25);
+    }
+    .disc-label {
+      max-width: 84%; text-align: center; font-size: 0.62rem; font-weight: 700;
+      color: var(--text); line-height: 1.25; word-break: break-word; overflow: hidden;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    }
+
+    /* the arm is rotated, so its bounding box is ~28% wider than its
+       width; these numbers keep that box inside --vinyl-clearance */
+    .stick {
+      position: absolute; top: -12%; left: 44%; width: 62%;
+      z-index: 10; transform-origin: center; pointer-events: none;
+      transform: rotate(-20deg);
+    }
+    .disc.spinning ~ .stick { animation: swing 9s ease-in-out infinite; }
+    @keyframes swing {
+      0%, 100% { transform: rotate(-20deg); }
+      50% { transform: rotate(-6deg); }
+    }
+
+    .player {
+      display: flex; align-items: center; gap: 14px;
+      width: calc(100% - var(--vinyl-clearance));
+      margin: 28px var(--vinyl-clearance) 0 auto;
+    }
+    .play-btn {
+      flex: 0 0 auto; width: 54px; height: 54px; border-radius: 50%;
+      background: var(--main); color: var(--bg);
+      display: flex; align-items: center; justify-content: center; padding: 0;
+    }
+    .play-btn:hover { background: var(--main); color: var(--bg); filter: brightness(1.1); }
+    .play-btn:disabled { filter: none; }
+    .play-btn svg { width: 52%; height: 52%; fill: var(--bg); }
+
+    .play-col { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+    .wave-wrap {
+      flex: 1; min-width: 0; border: 2px solid var(--sub);
+      border-radius: 10px; padding: 7px; background: var(--sub-alt);
+    }
+    .player canvas {
+      display: block; width: 100%; height: 84px; border-radius: 6px;
+      background: var(--bg); cursor: pointer; touch-action: none;
+    }
+
+    .time-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 6px; font-size: 0.625rem; color: var(--sub);
+      font-variant-numeric: tabular-nums;
+    }
+    .time-row .loop-info { color: var(--main); }
+
+    .volume-strip {
+      display: flex; align-items: center; justify-content: center;
+      position: relative; gap: 4px; width: 54px; height: 18px; border-radius: 999px;
+    }
+    .volume-strip::before {
+      content: ''; position: absolute; top: -2px; right: -8px; bottom: -2px; left: -8px;
+      border-radius: 999px; background: var(--sub-alt); pointer-events: none;
+    }
+    .volume-strip input[type="range"] {
+      position: relative; z-index: 1; flex: 1 1 auto; min-width: 0;
+      height: 4px; border-radius: 999px;
+      background: linear-gradient(to right,
+        var(--main) 0%, var(--main) var(--volume-progress, 100%),
+        var(--bg) var(--volume-progress, 100%), var(--bg) 100%);
+    }
+    .volume-strip input[type="range"]::-webkit-slider-thumb { width: 12px; height: 12px; }
+    .volume-strip input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; }
+    .volume-indicator {
+      position: relative; z-index: 1; flex: 0 0 12px;
+      width: 12px; height: 12px; color: var(--sub);
+    }
+
+    @media (max-width: 760px) {
+      .vinyl-col { padding-top: 58px; }
+      .vinyl-player { width: calc(100% - 64px); margin: 0 64px 0 auto; }
+      .player { width: 100%; margin-left: 0; margin-right: 0; }
+    }
+
+    .slider-section {
+      background: var(--sub-alt); border-radius: 10px;
+      padding: 16px 18px; margin-top: 12px;
+    }
+    .slider-section.disabled { opacity: 0.4; }
+    .slider-section.disabled input[type="range"] { pointer-events: none; }
+    .slider-section + .slider-section { margin-top: 10px; }
+
+    .slider-label {
+      display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;
+    }
+    .slider-label > span:first-child {
+      font-size: 0.75rem; color: var(--sub); text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .slider-label .rate-value {
+      font-size: 1.125rem; font-weight: 600; color: var(--main); font-variant-numeric: tabular-nums;
+    }
+    .rate-suffix { font-size: 0.75rem; color: var(--sub); font-weight: 400; }
+
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+      border-radius: 3px; background: var(--bg); outline: none; cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 18px; height: 18px;
+      border-radius: 50%; background: var(--main); cursor: pointer; transition: transform 0.12s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.18); }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: var(--main); cursor: pointer; border: none;
+    }
+
+    .ticks { display: flex; justify-content: space-between; margin-top: 8px; padding: 0 2px; }
+    .ticks span { font-size: 0.6875rem; color: var(--sub); }
+
+    .sub-slider { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--bg); }
+
+    .status { margin-top: 18px; text-align: center; font-size: 0.75rem; color: var(--sub); min-height: 1.2em; }
+    .status.streaming, .status.ready { color: var(--main); }
+    .status.error { color: var(--error); }
+
+    .jump-live-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: fit-content; margin: 10px auto 0; border-radius: 6px;
+      padding: 9px 14px; font-size: 0.75rem; line-height: 1; white-space: nowrap;
+      background: var(--sub-alt); color: var(--text);
+    }
+    .jump-live-btn:hover { background: var(--text); color: var(--bg); }
+
+    .hint {
+      margin-top: 14px; font-size: 0.625rem; line-height: 1.7;
+      color: var(--sub); text-align: center;
+    }
+    .hint kbd {
+      display: inline-block; padding: 1px 5px; border-radius: 4px;
+      background: var(--sub-alt); color: var(--text); font-family: inherit; font-size: 0.95em;
+    }
+
+    .busy {
+      position: fixed; inset: 0; z-index: 50;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      background: rgba(26, 27, 29, 0.86); color: var(--text); font-size: 0.8125rem;
+    }
+    .busy .ring {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid var(--sub-alt); border-top-color: var(--main);
+      animation: spin 0.9s linear infinite;
+    }
+
+    @media (max-width: 760px) {
+      body { align-items: flex-start; padding: 16px; }
+      .card { max-width: 480px; margin: 0 auto; }
+      .notice { gap: 10px; margin-bottom: 14px; padding: 10px 12px; font-size: 0.75rem; }
+      .controls-col > h1, .subtitle { text-align: center; }
+      .slider-section { padding: 16px 14px; }
+      input[type="range"] { height: 8px; }
+      input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; }
+      input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
+      .preset-btn { flex: 1 1 45%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="notice" id="engine-notice" role="status" hidden>
+      <span class="notice-icon" aria-hidden="true">!</span>
+      <span id="engine-notice-text"></span>
+    </div>
+
+    <div class="layout">
+      <div class="vinyl-col">
+        <div class="vinyl-player">
+          <div class="disc" id="disc">
+            <div class="inner-disc"><span class="disc-label" id="track-name"></span></div>
+          </div>
+          <img class="stick" src="stick.svg" alt="">
+        </div>
+
+        <div class="player">
+          <div class="play-col">
+            <button class="play-btn" id="btn-play" aria-label="play / pause" disabled></button>
+            <div class="volume-strip">
+              <svg class="volume-indicator" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M15.5 8.5a5 5 0 0 1 0 7"></path>
+              </svg>
+              <input id="volume-control" type="range" min="0" max="100" value="100" step="1" aria-label="volume">
+            </div>
+          </div>
+          <div class="wave-wrap">
+            <canvas id="buffer-canvas" width="960" height="168"></canvas>
+            <div class="time-row">
+              <span id="time-current">0:00</span>
+              <span class="loop-info" id="loop-info"></span>
+              <span id="time-total">0:00</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="jump-live-btn" id="btn-jump-live" hidden>jump to live</button>
+
+        <p class="hint">
+          <kbd>space</kbd> play · <kbd>&larr;</kbd><kbd>&rarr;</kbd> seek · <kbd>L</kbd> loop ·
+          drag the waveform to set a loop · <kbd>shift</kbd>+click clears it
+        </p>
+      </div>
+
+      <div class="controls-col">
+        <h1>slow playback audio</h1>
+        <p class="subtitle">drop a track, slow it down, drown it in reverb. everything runs locally in your browser.</p>
+
+        <div id="source-panel">
+          <div class="youtube-status-row">
+            <div class="status" id="status">drop an audio file on the record, or paste a youtube link.</div>
+            <button class="youtube-cancel-btn" id="btn-youtube-cancel" hidden>cancel</button>
+          </div>
+          <div class="youtube-url-row">
+            <input class="mobile-field" id="youtube-url-input" type="url" inputmode="url" autocomplete="url" placeholder="youtube url" aria-label="youtube url">
+            <button id="btn-yt-paste" title="paste link &amp; load" aria-label="paste link and load">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="8" y="2" width="8" height="4" rx="1"></rect>
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              </svg>
+            </button>
+          </div>
+          <div class="progress-track" id="download-progress" hidden><i></i></div>
+          <button class="panel-btn" id="btn-youtube-download">load track</button>
+          <button class="panel-btn" id="btn-saved-songs" aria-expanded="false" aria-controls="saved-songs-list">saved songs</button>
+          <ul class="saved-songs-list" id="saved-songs-list" aria-label="saved songs" hidden></ul>
+          <button class="panel-btn" id="btn-clear-songs" hidden>clear saved songs</button>
+        </div>
+
+        <div class="slider-section slider-rate">
+          <div class="slider-label">
+            <span>playback rate</span>
+            <span class="rate-value"><span id="playback-rate-value">1.00</span><span class="rate-suffix">&times;</span></span>
+          </div>
+          <input type="range" id="playback-rate-control" min="0.25" max="2" step="0.001" value="1">
+          <div class="ticks">
+            <span>0.25&times;</span>
+            <span>1&times;</span>
+            <span>2&times;</span>
+          </div>
+          <div class="sub-slider">
+            <div class="toggle-row">
+              <span class="label">keep pitch<small>time-stretch instead of pitching down</small></span>
+              <button class="toggle" id="btn-keep-pitch" aria-pressed="false">off</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="slider-section slider-reverb">
+          <div class="slider-label">
+            <span>reverb mix</span>
+            <span class="rate-value"><span id="reverb-mix-value">0</span><span class="rate-suffix">%</span></span>
+          </div>
+          <input type="range" id="reverb-mix-control" min="0" max="100" step="0.1" value="0">
+          <div class="ticks">
+            <span>dry</span>
+            <span>50%</span>
+            <span>wet</span>
+          </div>
+        </div>
+
+        <div class="slider-section slider-bass">
+          <div class="slider-label">
+            <span>bass boost</span>
+            <span class="rate-value">+<span id="bass-boost-value">0.0</span><span class="rate-suffix">dB</span></span>
+          </div>
+          <input type="range" id="bass-boost-control" min="0" max="15" step="0.1" value="0">
+          <div class="ticks">
+            <span>flat</span>
+            <span>+7.5dB</span>
+            <span>+15dB</span>
+          </div>
+        </div>
+
+        <div class="preset-row">
+          <button class="preset-btn" data-preset="clean">clean</button>
+          <button class="preset-btn" data-preset="slowed">slowed + reverb</button>
+          <button class="preset-btn" data-preset="screw">screw &amp; chop</button>
+          <button class="preset-btn" data-preset="vapor">vaporwave</button>
+          <button class="preset-btn" data-preset="underwater">underwater</button>
+          <button class="preset-btn" data-preset="nightcore">nightcore</button>
+        </div>
+
+        <button class="advanced-toggle" id="btn-advanced" aria-expanded="false" aria-controls="advanced">show advanced &#9662;</button>
+
+        <div id="advanced" hidden>
+          <div class="controls">
+            <button class="btn-stream" id="btn-stream">stream (tab)</button>
+            <button class="btn-choose" id="btn-choose">choose file</button>
+          </div>
+          <div class="controls">
+            <button class="btn-export" id="btn-export-wav" disabled>export wav</button>
+            <button class="btn-export" id="btn-export-mp3" disabled>export mp3</button>
+          </div>
+
+          <div class="slider-section">
+            <div class="slider-label">
+              <span>reverb decay</span>
+              <span class="rate-value"><span id="reverb-decay-value">3.2</span><span class="rate-suffix">s</span></span>
+            </div>
+            <input type="range" id="reverb-decay-control" min="0.4" max="12" step="0.01" value="3.2">
+            <div class="ticks"><span>0.4s</span><span>6s</span><span>12s</span></div>
+
+            <div class="sub-slider">
+              <div class="slider-label">
+                <span>pre-delay</span>
+                <span class="rate-value"><span id="reverb-predelay-value">28</span><span class="rate-suffix">ms</span></span>
+              </div>
+              <input type="range" id="reverb-predelay-control" min="0" max="200" step="1" value="28">
+              <div class="ticks"><span>0ms</span><span>tight</span><span>200ms</span></div>
+            </div>
+
+            <div class="sub-slider">
+              <div class="slider-label">
+                <span>tail damping</span>
+                <span class="rate-value"><span id="reverb-damp-value">45</span><span class="rate-suffix">%</span></span>
+              </div>
+              <input type="range" id="reverb-damp-control" min="0" max="100" step="0.1" value="45">
+              <div class="ticks"><span>bright</span><span>warm</span><span>dark</span></div>
+            </div>
+
+            <div class="sub-slider">
+              <div class="slider-label">
+                <span>room size</span>
+                <span class="rate-value"><span id="reverb-size-value">70</span><span class="rate-suffix">%</span></span>
+              </div>
+              <input type="range" id="reverb-size-control" min="0" max="100" step="0.1" value="70">
+              <div class="ticks"><span>booth</span><span>hall</span><span>cathedral</span></div>
+            </div>
+
+            <div class="sub-slider">
+              <div class="slider-label">
+                <span>stereo width</span>
+                <span class="rate-value"><span id="reverb-width-value">100</span><span class="rate-suffix">%</span></span>
+              </div>
+              <input type="range" id="reverb-width-control" min="0" max="140" step="0.1" value="100">
+              <div class="ticks"><span>mono</span><span>wide</span><span>ultra</span></div>
+            </div>
+          </div>
+
+          <div class="slider-section">
+            <div class="slider-label">
+              <span>air / treble</span>
+              <span class="rate-value"><span id="air-value">0.0</span><span class="rate-suffix">dB</span></span>
+            </div>
+            <input type="range" id="air-control" min="-12" max="8" step="0.1" value="0">
+            <div class="ticks"><span>-12dB</span><span>flat</span><span>+8dB</span></div>
+          </div>
+
+          <div class="slider-section">
+            <div class="toggle-row">
+              <span class="label">8d audio<small>orbits your head, bass stays centred</small></span>
+              <button class="toggle" id="btn-8d" aria-pressed="false">off</button>
+            </div>
+            <div class="sub-slider" id="eightd-speed" hidden>
+              <div class="slider-label">
+                <span>orbit speed</span>
+                <span class="rate-value"><span id="eightd-period-value">10.0</span><span class="rate-suffix">s</span></span>
+              </div>
+              <input type="range" id="eightd-period-control" min="2" max="24" step="0.1" value="10">
+              <div class="ticks"><span>2s fast</span><span>10s</span><span>24s slow</span></div>
+            </div>
+          </div>
+
+          <div class="slider-section" id="pan-section">
+            <div class="slider-label">
+              <span>3d pan</span>
+              <span class="rate-value"><span id="pan-value">C</span></span>
+            </div>
+            <input type="range" id="pan-control" min="-100" max="100" step="1" value="0">
+            <div class="ticks"><span>left</span><span>center</span><span>right</span></div>
+          </div>
+
+          <div class="slider-section">
+            <div class="toggle-row">
+              <span class="label">loop region<small>drag on the waveform to set in / out</small></span>
+              <button class="toggle" id="btn-loop" aria-pressed="false">off</button>
+            </div>
+            <div class="toggle-row">
+              <span class="label">output limiter<small>stops bass boost from clipping</small></span>
+              <button class="toggle active" id="btn-limiter" aria-pressed="true">on</button>
+            </div>
+            <div class="toggle-row">
+              <span class="label">save loaded tracks<small>kept in this browser only</small></span>
+              <button class="toggle active" id="btn-autosave" aria-pressed="true">on</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="busy" id="busy" hidden>
+    <div class="ring"></div>
+    <div id="busy-text">working…</div>
+  </div>
+
+  <input class="file-input-native" type="file" id="file-input" accept="audio/*,video/*">
+  <script src="index.js"></script>
+</body>
+</html>

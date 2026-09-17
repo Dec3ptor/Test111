@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="arm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e9e8dd"/>
+      <stop offset="0.5" stop-color="#b9b8ad"/>
+      <stop offset="1" stop-color="#8d8c83"/>
+    </linearGradient>
+    <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a4c50"/>
+      <stop offset="1" stop-color="#26282b"/>
+    </linearGradient>
+  </defs>
+  <!-- counterweight -->
+  <rect x="236" y="40" width="44" height="30" rx="9" fill="url(#base)"/>
+  <rect x="241" y="46" width="34" height="7" rx="3.5" fill="#5c5e62"/>
+  <!-- pivot -->
+  <circle cx="230" cy="70" r="20" fill="url(#base)"/>
+  <circle cx="230" cy="70" r="8" fill="#e2b714"/>
+  <!-- arm -->
+  <path d="M230 70 L112 198" stroke="url(#arm)" stroke-width="11" stroke-linecap="round"/>
+  <path d="M230 70 L112 198" stroke="rgba(255,255,255,.35)" stroke-width="3" stroke-linecap="round"/>
+  <!-- headshell -->
+  <path d="M112 198 l-26 28 a10 10 0 0 0 .6 14 l14 12 a10 10 0 0 0 14 -1 l26 -28 z" fill="url(#base)"/>
+  <rect x="96" y="222" width="26" height="9" rx="4" transform="rotate(-47 109 226)" fill="#5c5e62"/>
+  <!-- stylus -->
+  <path d="M92 240 l-9 12" stroke="#e2b714" stroke-width="5" stroke-linecap="round"/>
+</svg>
