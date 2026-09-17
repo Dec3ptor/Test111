@@ -14,18 +14,21 @@ favicon.svg
 ## Hosting on GitHub Pages
 
 The app lives at the repository root, so Pages serves it with no build step:
-**Settings -> Pages -> Source: Deploy from a branch**, then pick the branch
-and `/ (root)`. All asset paths are relative, so it works both at
-`user.github.io/repo/` and at a custom domain.
+**Settings -> Pages -> Source: Deploy from a branch**, then `main` and
+`/ (root)`. All asset paths are relative, so it works both at
+`user.github.io/repo/` and at a custom domain. Leave **Enforce HTTPS** on:
+AudioWorklet and tab capture both need a secure context.
 
-Two things to know:
+Worth knowing:
 
 - **Pages is static, so there is no YouTube downloader.** See below — file
   loading, drag and drop, tab capture, every effect and both export formats
   work with no backend at all.
-- `<link rel="canonical">` and the Open Graph tags in `index.html` still point
-  at `https://slowedrvb.com/`. Right if that is the production domain (add a
-  `CNAME` file for it); change them if you are serving somewhere else.
+- `<link rel="canonical">`, the Open Graph tags and the JSON-LD block in
+  `index.html` point at `https://dec3ptor.github.io/Test111/`. Update all four
+  if you move to a custom domain (and add a `CNAME` file for it).
+- `og:image` is an SVG, which X and Facebook do not render in link previews.
+  Swap in a PNG if link cards matter.
 
 ## Why the old reverb sounded robotic
 
